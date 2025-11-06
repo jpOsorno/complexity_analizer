@@ -1,0 +1,70 @@
+// grammar.lark (versión corregida)
+// Gramática del pseudocódigo basada en Proyecto_Gramatica.docx
+
+%import common.CNAME -> NAME
+%import common.INT
+%import common.WS_INLINE
+%import common.NEWLINE
+%ignore WS_INLINE
+%ignore NEWLINE
+
+// Comentarios de línea que empiezan con ►
+COMMENT: "►" /[^\n]*/ 
+%ignore COMMENT
+
+start: program
+
+// Program / procedures
+program: (class_def | proc_def | statement)*
+
+class_def: "class" NAME "{" class_fields "}"
+class_fields: (NAME)+
+
+proc_def: NAME "(" [param_list] ")" "begin" statement* "end"
+param_list: param ("," param)*
+param: NAME | NAME "[" INT? "]" | "Clase" NAME
+
+// Statements
+?statement: assignment
+          | if_stmt
+          | while_stmt
+          | for_stmt
+          | repeat_stmt
+          | call_stmt
+          | decl_stmt
+          | "begin" statement* "end"
+
+assignment: lvalue "🡨" expr
+lvalue: NAME (indexing | "." NAME)*
+indexing: ("[" expr ( ".." expr)? "]")+
+
+decl_stmt: NAME "[" INT? "]"
+         | "Clase" NAME NAME
+
+call_stmt: "CALL" NAME "(" [arg_list] ")"
+arg_list: expr ("," expr)*
+
+// Control flow
+if_stmt: "If" "(" expr ")" "then" "begin" statement* "end" ["else" "begin" statement* "end"]
+while_stmt: "while" "(" expr ")" "do" "begin" statement* "end"
+for_stmt: "for" NAME "🡨" expr "to" expr "do" "begin" statement* "end"
+repeat_stmt: "repeat" statement* "until" "(" expr ")"
+
+// Expressions
+?expr: logic_or
+?logic_or: logic_and ("or" logic_and)*
+?logic_and: logic_not ("and" logic_not)*
+?logic_not: "not" logic_not
+          | comparison
+?comparison: arith (( "<" | ">" | "<=" | ">=" | "=" | "≠" | "!=" ) arith)?
+?arith: term (("+"|"-") term)*
+?term: factor (("*"|"/"|"div"|"mod") factor)*
+?factor: atom
+       | "-" factor
+atom: INT
+    | NAME
+    | NAME "[" expr ( ".." expr)? "]"
+    | NAME "." NAME
+    | "length" "(" NAME ")"
+    | "NULL"
+    | "(" expr ")"

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+lark-parser
+sympy
+streamlit
+graphviz
+pytest
+black
+ruff
