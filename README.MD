@@ -1,1 +1,6 @@
-Pa Hay que ir haciendo tambien el readme de como ponemos a funcionar lo que vayamos haciendo
+# Complexity Analyzer 🔍
+
+Sistema para analizar automáticamente la complejidad computacional de algoritmos escritos en pseudocódigo.
+
+## 📦 Estructura del Proyecto
+
