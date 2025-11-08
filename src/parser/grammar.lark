@@ -120,12 +120,12 @@ return_statement: "return" expression?
 // EXPRESIONES BOOLEANAS
 // ----------------------------------------------------------------------------
 ?boolean_expression: boolean_term
-                   | boolean_expression "or" boolean_term    // or es short-circuit
+                   | boolean_expression "or" boolean_term    -> or_op
 
 ?boolean_term: boolean_factor
-             | boolean_term "and" boolean_factor           // and es short-circuit
+             | boolean_term "and" boolean_factor           -> and_op
 
-?boolean_factor: "not" boolean_factor
+?boolean_factor: "not" boolean_factor     -> not_op
                | relational_expression
                | "(" boolean_expression ")"
                | BOOLEAN
@@ -134,35 +134,35 @@ return_statement: "return" expression?
 // EXPRESIONES RELACIONALES: <, >, ≤, ≥, =, ≠
 // ----------------------------------------------------------------------------
 ?relational_expression: arithmetic_expression
-                      | arithmetic_expression "<" arithmetic_expression
-                      | arithmetic_expression ">" arithmetic_expression
-                      | arithmetic_expression "≤" arithmetic_expression
-                      | arithmetic_expression "<=" arithmetic_expression   // alternativa
-                      | arithmetic_expression "≥" arithmetic_expression
-                      | arithmetic_expression ">=" arithmetic_expression   // alternativa
-                      | arithmetic_expression "=" arithmetic_expression
-                      | arithmetic_expression "≠" arithmetic_expression
-                      | arithmetic_expression "<>" arithmetic_expression   // alternativa
+                      | arithmetic_expression "<" arithmetic_expression   -> lt
+                      | arithmetic_expression ">" arithmetic_expression   -> gt
+                      | arithmetic_expression "≤" arithmetic_expression   -> le
+                      | arithmetic_expression "<=" arithmetic_expression  -> le
+                      | arithmetic_expression "≥" arithmetic_expression   -> ge
+                      | arithmetic_expression ">=" arithmetic_expression  -> ge
+                      | arithmetic_expression "=" arithmetic_expression   -> eq
+                      | arithmetic_expression "≠" arithmetic_expression   -> ne
+                      | arithmetic_expression "<>" arithmetic_expression  -> ne
 
 // ----------------------------------------------------------------------------
 // EXPRESIONES ARITMÉTICAS: +, -, *, /, mod, div, ^, ┌┐, └┘
 // ----------------------------------------------------------------------------
 ?arithmetic_expression: term
-                      | arithmetic_expression "+" term
-                      | arithmetic_expression "-" term
+                      | arithmetic_expression "+" term    -> add
+                      | arithmetic_expression "-" term    -> sub
 
 ?term: factor
-     | term "*" factor
-     | term "/" factor
-     | term "mod" factor
-     | term "div" factor
+     | term "*" factor      -> mul
+     | term "/" factor      -> div
+     | term "mod" factor    -> mod
+     | term "div" factor    -> int_div
 
 ?factor: power
-       | "+" factor
-       | "-" factor
+       | "+" factor          -> pos
+       | "-" factor          -> neg
 
 ?power: primary
-      | primary "^" factor
+      | primary "^" factor   -> pow
 
 ?primary: NUMBER
         | STRING                                    // Cadenas de texto
