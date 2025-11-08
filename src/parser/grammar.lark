@@ -1,0 +1,277 @@
+// ============================================================================
+// GRAMÁTICA LARK PARA ANALIZADOR DE COMPLEJIDADES
+// Basada en Proyecto_Gramatica.docx - Convenciones tipo Pascal
+// ============================================================================
+
+// PROGRAMA PRINCIPAL
+?start: program
+
+program: (class_definition)* procedure_definition+
+
+// ============================================================================
+// DEFINICIÓN DE CLASES (antes de los algoritmos)
+// ============================================================================
+class_definition: IDENTIFIER "{" attribute_list "}"
+
+attribute_list: IDENTIFIER+
+
+// ============================================================================
+// DEFINICIÓN DE PROCEDIMIENTOS/FUNCIONES
+// ============================================================================
+procedure_definition: IDENTIFIER "(" parameter_list? ")" block
+
+parameter_list: parameter ("," parameter)*
+
+// ORDEN IMPORTANTE: array_param ANTES de IDENTIFIER para evitar ambigüedad
+parameter: class_param                      // Clase NombreObjeto
+         | array_param                      // nombreArray[n]..[m] o nombreArray[]
+         | simple_param                     // variable simple
+
+// Parámetro de tipo clase: "Clase" seguido de identificador
+class_param: "Clase" IDENTIFIER
+
+// Arrays como parámetros: A[], A[n], A[n][m], A[][]
+// [NUMBER] es opcional para permitir A[] sin tamaño
+array_param: IDENTIFIER ("[" NUMBER? "]")+
+
+// Parámetro simple para evitar ambigüedad
+simple_param: IDENTIFIER
+
+// ============================================================================
+// BLOQUES Y DECLARACIONES
+// ============================================================================
+block: "begin" declaration* statement* "end"
+
+// Declaraciones locales (al inicio del bloque, ANTES de los statements)
+?declaration: local_array_decl
+            | local_object_decl
+
+// Arrays locales: nombre[tamaño] o nombre[tam1][tam2]
+// Usamos un nombre diferente para evitar conflicto con array_access
+local_array_decl: IDENTIFIER ("[" expression? "]")+
+
+local_object_decl: "Clase" IDENTIFIER
+
+// ============================================================================
+// SENTENCIAS (STATEMENTS)
+// ============================================================================
+?statement: for_statement
+          | while_statement
+          | repeat_statement
+          | if_statement
+          | assignment
+          | call_statement
+          | return_statement
+          | COMMENT
+
+// ----------------------------------------------------------------------------
+// FOR: for variable ← valorInicial to limite do begin ... end
+// ----------------------------------------------------------------------------
+for_statement: "for" IDENTIFIER "←" expression "to" expression "do" block
+
+// ----------------------------------------------------------------------------
+// WHILE: while (condicion) do begin ... end
+// ----------------------------------------------------------------------------
+while_statement: "while" "(" boolean_expression ")" "do" block
+
+// ----------------------------------------------------------------------------
+// REPEAT: repeat ... until (condicion)
+// ----------------------------------------------------------------------------
+repeat_statement: "repeat" statement+ "until" "(" boolean_expression ")"
+
+// ----------------------------------------------------------------------------
+// IF-THEN-ELSE: if (condicion) then begin ... end else begin ... end
+// ----------------------------------------------------------------------------
+if_statement: "if" "(" boolean_expression ")" "then" block ("else" block)?
+
+// ----------------------------------------------------------------------------
+// ASIGNACIÓN: variable ← expresión
+// No se permiten asignaciones múltiples
+// ----------------------------------------------------------------------------
+assignment: lvalue "←" expression
+
+// lvalue puede ser: x, A[i], A[i][j], objeto.campo, A[i].campo
+// Para evitar ambigüedad, definimos cada caso explícitamente
+?lvalue: IDENTIFIER                                              // x (variable simple)
+       | IDENTIFIER ("[" expression "]")+                        // A[i], A[i][j] (arrays)
+       | IDENTIFIER ("." IDENTIFIER)+                            // obj.field (objetos)
+       | IDENTIFIER ("[" expression "]")+ ("." IDENTIFIER)+      // A[i].field (combinado)
+
+// ----------------------------------------------------------------------------
+// LLAMADA A PROCEDIMIENTO: CALL nombre(argumentos)
+// ----------------------------------------------------------------------------
+call_statement: "call" IDENTIFIER "(" argument_list? ")"
+
+argument_list: expression ("," expression)*
+
+// ----------------------------------------------------------------------------
+// RETURN (opcional, para análisis de funciones)
+// ----------------------------------------------------------------------------
+return_statement: "return" expression?
+
+// ============================================================================
+// EXPRESIONES
+// ============================================================================
+
+// Expresiones generales (aritméticas, booleanas, relacionales)
+?expression: boolean_expression
+
+// ----------------------------------------------------------------------------
+// EXPRESIONES BOOLEANAS
+// ----------------------------------------------------------------------------
+?boolean_expression: boolean_term
+                   | boolean_expression "or" boolean_term    // or es short-circuit
+
+?boolean_term: boolean_factor
+             | boolean_term "and" boolean_factor           // and es short-circuit
+
+?boolean_factor: "not" boolean_factor
+               | relational_expression
+               | "(" boolean_expression ")"
+               | BOOLEAN
+
+// ----------------------------------------------------------------------------
+// EXPRESIONES RELACIONALES: <, >, ≤, ≥, =, ≠
+// ----------------------------------------------------------------------------
+?relational_expression: arithmetic_expression
+                      | arithmetic_expression "<" arithmetic_expression
+                      | arithmetic_expression ">" arithmetic_expression
+                      | arithmetic_expression "≤" arithmetic_expression
+                      | arithmetic_expression "<=" arithmetic_expression   // alternativa
+                      | arithmetic_expression "≥" arithmetic_expression
+                      | arithmetic_expression ">=" arithmetic_expression   // alternativa
+                      | arithmetic_expression "=" arithmetic_expression
+                      | arithmetic_expression "≠" arithmetic_expression
+                      | arithmetic_expression "<>" arithmetic_expression   // alternativa
+
+// ----------------------------------------------------------------------------
+// EXPRESIONES ARITMÉTICAS: +, -, *, /, mod, div, ^, ┌┐, └┘
+// ----------------------------------------------------------------------------
+?arithmetic_expression: term
+                      | arithmetic_expression "+" term
+                      | arithmetic_expression "-" term
+
+?term: factor
+     | term "*" factor
+     | term "/" factor
+     | term "mod" factor
+     | term "div" factor
+
+?factor: power
+       | "+" factor
+       | "-" factor
+
+?power: primary
+      | primary "^" factor
+
+?primary: NUMBER
+        | STRING                                    // Cadenas de texto
+        | length_function
+        | ceiling_function
+        | floor_function
+        | function_call                             // callFunc(args) en expresiones
+        | "(" arithmetic_expression ")"
+        | "NULL"
+        | IDENTIFIER ("[" array_index "]")+        // Array access: A[i], A[i][j]
+        | IDENTIFIER ("." IDENTIFIER)+              // Object access: obj.field
+        | IDENTIFIER                                // Simple variable (debe ir al final)
+
+// ----------------------------------------------------------------------------
+// LLAMADA A FUNCIÓN (dentro de expresiones)
+// ----------------------------------------------------------------------------
+function_call: "call" IDENTIFIER "(" argument_list? ")"
+
+// ----------------------------------------------------------------------------
+// ACCESO A ARRAYS: A[i], A[i][j], A[1..j]
+// ----------------------------------------------------------------------------
+array_index: expression
+           | expression ".." expression      // rango: A[1..j]
+
+// ----------------------------------------------------------------------------
+// FUNCIONES ESPECIALES
+// ----------------------------------------------------------------------------
+length_function: "length" "(" IDENTIFIER ")"
+
+ceiling_function: "┌" expression "┐"
+                | "ceil" "(" expression ")"    // alternativa ASCII
+
+floor_function: "└" expression "┘"
+              | "floor" "(" expression ")"     // alternativa ASCII
+
+// ============================================================================
+// TOKENS Y LITERALES
+// ============================================================================
+
+// Strings (cadenas de texto): "texto" o 'texto'
+STRING: /"[^"]*"/ | /'[^']*'/
+
+// Booleanos
+BOOLEAN: "T" | "F" | "true" | "false"
+
+// Números (enteros y reales)
+NUMBER: /\d+(\.\d+)?/
+
+// Identificadores (variables, procedimientos, etc.)
+// NO pueden contener caracteres de puntuación excepto en casos específicos
+IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
+
+// Comentarios: ► indica que el resto de la línea es un comentario
+COMMENT: "►" /[^\n]*/
+
+// ============================================================================
+// PALABRAS CLAVE (keywords)
+// ============================================================================
+// Lark las detecta automáticamente, pero las listamos para claridad:
+// for, to, do, while, repeat, until, if, then, else, begin, end
+// call, return, and, or, not, mod, div, length, NULL, Clase
+
+// ============================================================================
+// WHITESPACE E IGNORADOS
+// ============================================================================
+%import common.WS
+%ignore WS
+
+// Comentarios también se ignoran (ya procesados como tokens)
+%ignore COMMENT
+
+// ============================================================================
+// NOTAS DE IMPLEMENTACIÓN
+// ============================================================================
+// 1. La gramática soporta:
+//    - Ciclos: for, while, repeat-until
+//    - Condicionales: if-then-else
+//    - Arrays multidimensionales: A[i][j][k]
+//    - Rangos de arrays: A[1..n]
+//    - Objetos: casa.color, casa.propietario
+//    - Clases: definidas antes del algoritmo
+//    - Procedimientos con parámetros tipados
+//    - Llamadas recursivas
+//    - Operadores: aritméticos, relacionales, booleanos
+//    - Short-circuit: and, or
+//    - NULL para punteros
+//
+// 2. Prioridad de operadores (de mayor a menor):
+//    - Paréntesis
+//    - Potencia (^)
+//    - Unario (-, +, not)
+//    - Multiplicación, división (*, /, mod, div)
+//    - Suma, resta (+, -)
+//    - Relacionales (<, >, ≤, ≥, =, ≠)
+//    - And
+//    - Or
+//
+// 3. Asignación: ← (se puede usar <- como alternativa en el tokenizer)
+//
+// 4. Variables locales: se declaran al inicio del bloque después de begin
+//
+// 5. Paso por valor: los parámetros son copiados, excepto objetos que
+//    pasan su referencia (puntero)
+//
+// 6. La variable del FOR retiene su valor después del ciclo
+//
+// 7. Ejemplos de uso:
+//    - for i ← 1 to n do begin A[i] ← 0 end
+//    - while (i < n) do begin i ← i + 1 end
+//    - if (x ≠ NULL and x.f = y) then begin call proceso(x) end
+//    - call ordenar(A[1..n], n)
+// ============================================================================
