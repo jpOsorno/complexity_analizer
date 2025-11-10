@@ -46,6 +46,79 @@ def load_parser():
 # TESTS
 # ============================================================================
 
+def test_simple_assignment():
+    """Test 1: Asignación simple"""
+    code = """
+Simple()
+begin
+    x ← 5
+end
+    """
+    
+    parser = load_parser()
+    tree = parser.parse(code)
+    ast = transform_to_ast(tree)
+    
+    # Verificaciones
+    assert isinstance(ast, ProgramNode), "Debe ser ProgramNode"
+    assert len(ast.procedures) == 1, "Debe tener 1 procedimiento"
+    
+    proc = ast.procedures[0]
+    assert proc.name == "Simple", f"Nombre debe ser 'Simple', es '{proc.name}'"
+    assert len(proc.parameters) == 0, "No debe tener parámetros"
+    assert len(proc.body.statements) == 1, "Debe tener 1 statement"
+    
+    stmt = proc.body.statements[0]
+    assert isinstance(stmt, AssignmentNode), "Debe ser AssignmentNode"
+    assert stmt.target.name == "x", "Target debe ser 'x'"
+    assert isinstance(stmt.value, NumberNode), "Value debe ser NumberNode"
+    assert stmt.value.value == 5, "Valor debe ser 5"
+    
+    return True
+
+
+def test_for_loop():
+    """Test 2: Ciclo FOR"""
+    code = """
+ForTest(n)
+begin
+    for i ← 1 to n do
+    begin
+        x ← i * 2
+    end
+end
+    """
+    
+    parser = load_parser()
+    tree = parser.parse(code)
+    ast = transform_to_ast(tree)
+    
+    proc = ast.procedures[0]
+    assert proc.name == "ForTest", f"Nombre debe ser 'ForTest'"
+    
+    # Verificar parámetro
+    assert len(proc.parameters) == 1, "Debe tener 1 parámetro"
+    assert isinstance(proc.parameters[0], SimpleParamNode), "Debe ser SimpleParamNode"
+    assert proc.parameters[0].name == "n", "Parámetro debe ser 'n'"
+    
+    # Verificar FOR
+    for_stmt = proc.body.statements[0]
+    assert isinstance(for_stmt, ForNode), "Debe ser ForNode"
+    assert for_stmt.variable == "i", "Variable debe ser 'i'"
+    assert isinstance(for_stmt.start, NumberNode), "Start debe ser NumberNode"
+    assert for_stmt.start.value == 1, "Start debe ser 1"
+    assert isinstance(for_stmt.end, IdentifierNode), "End debe ser IdentifierNode"
+    assert for_stmt.end.name == "n", "End debe ser 'n'"
+    
+    # Verificar cuerpo del FOR
+    assignment = for_stmt.body.statements[0]
+    assert isinstance(assignment, AssignmentNode), "Debe ser AssignmentNode"
+    assert isinstance(assignment.value, BinaryOpNode), "Debe ser BinaryOpNode"
+    assert assignment.value.op == "*", f"Operador debe ser '*', es '{assignment.value.op}'"
+    
+    return True
+
+
 def test_binary_operations():
     """Test 3: Operaciones binarias"""
     code = """
@@ -189,6 +262,50 @@ end
     
     return True
 
+
+def test_recursion():
+    """Test 7: Recursión (Factorial)"""
+    code = """
+Factorial(n)
+begin
+    if (n ≤ 1) then
+    begin
+        return 1
+    end
+    else
+    begin
+        return n * call Factorial(n-1)
+    end
+end
+    """
+    
+    parser = load_parser()
+    tree = parser.parse(code)
+    ast = transform_to_ast(tree)
+    
+    proc = ast.procedures[0]
+    assert proc.name == "Factorial", "Nombre debe ser 'Factorial'"
+    
+    if_stmt = proc.body.statements[0]
+    
+    # Verificar THEN (return 1)
+    return_stmt = if_stmt.then_block.statements[0]
+    assert isinstance(return_stmt, ReturnNode), "Debe ser ReturnNode"
+    assert isinstance(return_stmt.value, NumberNode), "Return debe ser NumberNode"
+    
+    # Verificar ELSE (return n * call Factorial(n-1))
+    return_stmt2 = if_stmt.else_block.statements[0]
+    assert isinstance(return_stmt2, ReturnNode), "Debe ser ReturnNode"
+    assert isinstance(return_stmt2.value, BinaryOpNode), "Return debe ser BinaryOpNode"
+    
+    # Verificar llamada recursiva
+    mult = return_stmt2.value
+    assert isinstance(mult.right, FunctionCallNode), "Debe haber FunctionCallNode"
+    assert mult.right.name == "Factorial", "Debe llamar a Factorial"
+    
+    return True
+
+
 def test_array_access():
     """Test 8: Acceso a arrays"""
     code = """
@@ -298,10 +415,13 @@ def run_all_tests():
     """Ejecuta todos los tests"""
     
     tests = [
+        (test_simple_assignment, "Test 1: Asignación Simple"),
+        (test_for_loop, "Test 2: Ciclo FOR"),
         (test_binary_operations, "Test 3: Operaciones Binarias"),
         (test_nested_for, "Test 4: FOR Anidado"),
         (test_while_loop, "Test 5: Ciclo WHILE"),
         (test_if_statement, "Test 6: IF-THEN-ELSE"),
+        (test_recursion, "Test 7: Recursión (Factorial)"),
         (test_array_access, "Test 8: Acceso a Arrays"),
         (test_complex_expressions, "Test 9: Expresiones Complejas"),
         (test_call_statement, "Test 10: Llamadas a Procedimientos"),

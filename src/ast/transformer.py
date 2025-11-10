@@ -94,6 +94,37 @@ class PseudocodeTransformer(Transformer):
         else:
             return int(item)
     
+    @staticmethod
+    def _token_to_node(item):
+        """
+        Convierte un Token en el nodo apropiado.
+        
+        Args:
+            item: Token, nodo, o valor primitivo
+            
+        Returns:
+            Nodo apropiado (NumberNode, IdentifierNode, etc.)
+        """
+        if isinstance(item, Token):
+            if item.type == 'NUMBER':
+                value = item.value
+                return NumberNode(value=float(value) if '.' in value else int(value))
+            elif item.type == 'IDENTIFIER':
+                return IdentifierNode(name=item.value)
+            elif item.type == 'STRING':
+                # Remover comillas
+                return StringNode(value=item.value[1:-1])
+            elif item.type == 'BOOLEAN':
+                return BooleanNode(value=item.value in ('T', 'true'))
+            elif item.type == 'NULL':
+                return NullNode()
+            else:
+                # Otro tipo de token, retornar como está
+                return item
+        else:
+            # Ya es un nodo o valor
+            return item
+    
     # ========================================================================
     # PROGRAMA Y DEFINICIONES
     # ========================================================================
@@ -253,9 +284,9 @@ class PseudocodeTransformer(Transformer):
         """
         for_statement: "for" IDENTIFIER "←" expression "to" expression "do" block
         """
-        variable = str(items[0])
-        start = items[1]
-        end = items[2]
+        variable = self._extract_string(items[0])
+        start = self._token_to_node(items[1])
+        end = self._token_to_node(items[2])
         body = items[3]
         
         return ForNode(variable=variable, start=start, end=end, body=body)
@@ -264,7 +295,7 @@ class PseudocodeTransformer(Transformer):
         """
         while_statement: "while" "(" boolean_expression ")" "do" block
         """
-        condition = items[0]
+        condition = self._token_to_node(items[0])
         body = items[1]
         
         return WhileNode(condition=condition, body=body)
@@ -276,7 +307,7 @@ class PseudocodeTransformer(Transformer):
         # Todos los items excepto el último son statements
         # El último es la condición
         statements = items[:-1]
-        condition = items[-1]
+        condition = self._token_to_node(items[-1])
         
         # Crear un bloque con los statements
         body = BlockNode(statements=list(statements))
@@ -287,7 +318,7 @@ class PseudocodeTransformer(Transformer):
         """
         if_statement: "if" "(" boolean_expression ")" "then" block ("else" block)?
         """
-        condition = items[0]
+        condition = self._token_to_node(items[0])
         then_block = items[1]
         else_block = items[2] if len(items) > 2 else None
         
@@ -297,8 +328,8 @@ class PseudocodeTransformer(Transformer):
         """
         assignment: lvalue "←" expression
         """
-        target = items[0]
-        value = items[1]
+        target = items[0]  # Ya está transformado por lvalue()
+        value = self._token_to_node(items[1])
         
         return AssignmentNode(target=target, value=value)
     
@@ -315,7 +346,7 @@ class PseudocodeTransformer(Transformer):
         """
         return_statement: "return" expression?
         """
-        value = items[0] if items else None
+        value = self._token_to_node(items[0]) if items else None
         
         return ReturnNode(value=value)
     
@@ -336,43 +367,50 @@ class PseudocodeTransformer(Transformer):
         - IDENTIFIER ("[" expression "]")+ (array)
         - IDENTIFIER ("." IDENTIFIER)+ (objeto)
         - IDENTIFIER ("[" expression "]")+ ("." IDENTIFIER)+ (combinado)
-        """
-        if len(items) == 1 and isinstance(items[0], str):
-            # Variable simple
-            return VariableLValueNode(name=str(items[0]))
         
-        # Detectar si hay acceso a array o objeto
-        name = str(items[0])
-        has_brackets = False
-        has_dots = False
+        La gramática inline define estas estructuras directamente.
+        """
+        # Transformar todos los items primero
+        transformed_items = [self._token_to_node(item) for item in items]
+        
+        # Extraer el nombre base
+        name = self._extract_string(transformed_items[0])
+        
+        # Separar los items restantes en indices y campos
         indices = []
         fields = []
         
         i = 1
-        while i < len(items):
-            item = items[i]
+        while i < len(transformed_items):
+            item = transformed_items[i]
             
-            # Si es una expresión, probablemente es un índice de array
-            if hasattr(item, '__class__') and 'Node' in item.__class__.__name__:
+            # Si es un nodo de expresión, es un índice de array
+            if isinstance(item, (BinaryOpNode, NumberNode, IdentifierNode, 
+                                UnaryOpNode, ArrayAccessNode, FunctionCallNode,
+                                StringNode, BooleanNode)):
                 indices.append(item)
-                has_brackets = True
+            # Si es un string simple, es un campo de objeto
             elif isinstance(item, str):
-                # Es un identificador de campo
-                fields.append(str(item))
-                has_dots = True
+                fields.append(item)
+            # Si todavía es un Token IDENTIFIER (no transformado), es un campo
+            elif isinstance(item, Token) and item.type == 'IDENTIFIER':
+                fields.append(item.value)
             
             i += 1
         
-        # Decidir qué tipo de lvalue crear
-        if has_brackets and not has_dots:
+        # Decidir qué tipo de lvalue crear basado en lo que encontramos
+        if len(indices) > 0 and len(fields) == 0:
+            # Solo índices: es un array
             return ArrayLValueNode(name=name, indices=indices)
-        elif has_dots and not has_brackets:
+        elif len(fields) > 0 and len(indices) == 0:
+            # Solo campos: es un objeto
             return ObjectLValueNode(object_name=name, fields=fields)
-        elif has_brackets and has_dots:
-            # Combinado: A[i].campo (menos común)
-            # Por simplicidad, tratamos como array
+        elif len(indices) > 0 and len(fields) > 0:
+            # Ambos: tratamos como array por ahora
+            # (casos como A[i].campo son raros)
             return ArrayLValueNode(name=name, indices=indices)
         else:
+            # Ni índices ni campos: variable simple
             return VariableLValueNode(name=name)
     
     # ========================================================================
@@ -382,78 +420,108 @@ class PseudocodeTransformer(Transformer):
     # Operadores aritméticos
     def add(self, items):
         """Suma: left + right"""
-        return BinaryOpNode(op="+", left=items[0], right=items[1])
+        return BinaryOpNode(op="+", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def sub(self, items):
         """Resta: left - right"""
-        return BinaryOpNode(op="-", left=items[0], right=items[1])
+        return BinaryOpNode(op="-", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def mul(self, items):
         """Multiplicación: left * right"""
-        return BinaryOpNode(op="*", left=items[0], right=items[1])
+        return BinaryOpNode(op="*", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def div(self, items):
         """División real: left / right"""
-        return BinaryOpNode(op="/", left=items[0], right=items[1])
+        return BinaryOpNode(op="/", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def mod(self, items):
         """Módulo: left mod right"""
-        return BinaryOpNode(op="mod", left=items[0], right=items[1])
+        return BinaryOpNode(op="mod", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def int_div(self, items):
         """División entera: left div right"""
-        return BinaryOpNode(op="div", left=items[0], right=items[1])
+        return BinaryOpNode(op="div", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def pow(self, items):
         """Potencia: base ^ exp"""
-        return BinaryOpNode(op="^", left=items[0], right=items[1])
+        return BinaryOpNode(op="^", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     # Operadores unarios
     def pos(self, items):
         """Unario positivo: +x"""
-        return UnaryOpNode(op="+", operand=items[0])
+        return UnaryOpNode(op="+", operand=self._token_to_node(items[0]))
     
     def neg(self, items):
         """Unario negativo: -x"""
-        return UnaryOpNode(op="-", operand=items[0])
+        return UnaryOpNode(op="-", operand=self._token_to_node(items[0]))
     
     # Operadores relacionales
     def lt(self, items):
         """Menor que: left < right"""
-        return BinaryOpNode(op="<", left=items[0], right=items[1])
+        return BinaryOpNode(op="<", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def gt(self, items):
         """Mayor que: left > right"""
-        return BinaryOpNode(op=">", left=items[0], right=items[1])
+        return BinaryOpNode(op=">", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def le(self, items):
         """Menor o igual: left ≤ right"""
-        return BinaryOpNode(op="≤", left=items[0], right=items[1])
+        return BinaryOpNode(op="≤", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def ge(self, items):
         """Mayor o igual: left ≥ right"""
-        return BinaryOpNode(op="≥", left=items[0], right=items[1])
+        return BinaryOpNode(op="≥", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def eq(self, items):
         """Igual: left = right"""
-        return BinaryOpNode(op="=", left=items[0], right=items[1])
+        return BinaryOpNode(op="=", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def ne(self, items):
         """Diferente: left ≠ right"""
-        return BinaryOpNode(op="≠", left=items[0], right=items[1])
+        return BinaryOpNode(op="≠", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     # Operadores booleanos
     def and_op(self, items):
         """AND lógico: left and right"""
-        return BinaryOpNode(op="and", left=items[0], right=items[1])
+        return BinaryOpNode(op="and", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def or_op(self, items):
         """OR lógico: left or right"""
-        return BinaryOpNode(op="or", left=items[0], right=items[1])
+        return BinaryOpNode(op="or", 
+                          left=self._token_to_node(items[0]), 
+                          right=self._token_to_node(items[1]))
     
     def not_op(self, items):
         """NOT lógico: not operand"""
-        return UnaryOpNode(op="not", operand=items[0])
+        return UnaryOpNode(op="not", operand=self._token_to_node(items[0]))
     
     # ========================================================================
     # EXPRESIONES: PRIMARIOS
@@ -461,59 +529,75 @@ class PseudocodeTransformer(Transformer):
     
     def primary(self, items):
         """
-        Primary puede ser muchas cosas, Lark ya lo resolvió
-        Solo retornamos el item
+        Primary puede ser muchas cosas diferentes.
+        Lark ya resolvió la ambigüedad, solo retornamos el resultado.
+        
+        Puede ser:
+        - NUMBER, STRING, BOOLEAN, NULL
+        - IDENTIFIER (variable simple)
+        - IDENTIFIER "[" ... "]" (array access)
+        - IDENTIFIER "." ... (object access)
+        - function_call, length, ceil, floor
+        - "(" expression ")"
         """
-        return items[0]
+        if len(items) == 1:
+            # Transformar el token si es necesario
+            return self._token_to_node(items[0])
+        
+        # Si hay múltiples items, necesitamos construir el nodo apropiado
+        # Transformar todos los items primero
+        transformed_items = [self._token_to_node(item) for item in items]
+        
+        # Primer item es el nombre
+        if isinstance(transformed_items[0], Token) and transformed_items[0].type == 'IDENTIFIER':
+            name = transformed_items[0].value
+        elif isinstance(transformed_items[0], IdentifierNode):
+            name = transformed_items[0].name
+        elif isinstance(transformed_items[0], str):
+            name = transformed_items[0]
+        else:
+            # Ya es un nodo completo
+            return transformed_items[0]
+        
+        # Detectar si es array access o object access
+        has_indices = False
+        has_fields = False
+        indices = []
+        fields = []
+        
+        for item in transformed_items[1:]:
+            # Si es un nodo de expresión, es índice de array
+            if isinstance(item, (BinaryOpNode, NumberNode, IdentifierNode, 
+                                UnaryOpNode, ArrayAccessNode, FunctionCallNode,
+                                RangeNode, StringNode, BooleanNode)):
+                indices.append(item)
+                has_indices = True
+            # Si es string, es campo de objeto
+            elif isinstance(item, str):
+                fields.append(item)
+                has_fields = True
+            # Si es Token IDENTIFIER (no transformado), es campo
+            elif isinstance(item, Token) and item.type == 'IDENTIFIER':
+                fields.append(item.value)
+                has_fields = True
+        
+        if has_indices:
+            return ArrayAccessNode(name=name, indices=indices)
+        elif has_fields:
+            return ObjectAccessNode(object_name=name, fields=fields)
+        else:
+            return IdentifierNode(name=name)
     
     # ========================================================================
     # EXPRESIONES: LITERALES Y VALORES
     # ========================================================================
     
-    def NUMBER(self, token):
-        """Token numérico"""
-        value = token.value
-        
-        # Determinar si es int o float
-        if '.' in value:
-            return NumberNode(value=float(value))
-        else:
-            return NumberNode(value=int(value))
+    # Los tokens NUMBER, STRING, BOOLEAN, IDENTIFIER, NULL
+    # se transforman automáticamente por _token_to_node()
+    # cuando se procesan en primary, lvalue, etc.
     
-    def STRING(self, token):
-        """Token string"""
-        # Remover comillas
-        value = token.value[1:-1]  # Quitar primera y última comilla
-        return StringNode(value=value)
-    
-    def BOOLEAN(self, token):
-        """Token booleano"""
-        value = token.value
-        
-        if value in ('T', 'true'):
-            return BooleanNode(value=True)
-        else:
-            return BooleanNode(value=False)
-    
-    def IDENTIFIER(self, token):
-        """
-        Token identificador
-        
-        IMPORTANTE: Este método solo se llama cuando IDENTIFIER 
-        aparece en contextos de EXPRESIONES.
-        
-        En otros contextos (nombres de procedimientos, parámetros),
-        usamos token.value directamente en los métodos correspondientes.
-        """
-        return IdentifierNode(name=token.value)
-    
-    def array_access(self, items):
-        """Array access inline en primary"""
-        # items[0] es el nombre, resto son índices
-        name = str(items[0])
-        indices = items[1:]
-        
-        return ArrayAccessNode(name=name, indices=indices)
+    # No necesitamos métodos separados para ellos porque
+    # visit_tokens=False evita que se llamen automáticamente.
     
     def array_index(self, items):
         """
@@ -525,19 +609,11 @@ class PseudocodeTransformer(Transformer):
             # Es un rango
             return RangeNode(start=items[0], end=items[1])
     
-    def object_access(self, items):
-        """Object access inline en primary"""
-        # items[0] es el objeto base, resto son campos
-        object_name = str(items[0])
-        fields = [str(item) for item in items[1:]]
-        
-        return ObjectAccessNode(object_name=object_name, fields=fields)
-    
     def function_call(self, items):
         """
         function_call: "call" IDENTIFIER "(" argument_list? ")"
         """
-        name = str(items[0])
+        name = self._extract_string(items[0])
         arguments = items[1] if len(items) > 1 and items[1] is not None else []
         
         return FunctionCallNode(name=name, arguments=arguments)
@@ -546,8 +622,20 @@ class PseudocodeTransformer(Transformer):
         """
         length_function: "length" "(" IDENTIFIER ")"
         """
-        array_name = str(items[0])
+        array_name = self._extract_string(items[0])
         return LengthNode(array_name=array_name)
+    
+    def ceiling_function(self, items):
+        """
+        ceiling_function: "┌" expression "┐" | "ceil" "(" expression ")"
+        """
+        return CeilingNode(expression=self._token_to_node(items[0]))
+    
+    def floor_function(self, items):
+        """
+        floor_function: "└" expression "┘" | "floor" "(" expression ")"
+        """
+        return FloorNode(expression=self._token_to_node(items[0]))
     
     def ceiling_function(self, items):
         """
@@ -565,9 +653,8 @@ class PseudocodeTransformer(Transformer):
     # CASOS ESPECIALES
     # ========================================================================
     
-    def NULL(self, token):
-        """Token NULL"""
-        return NullNode()
+    # NULL se maneja en _token_to_node()
+    # Ya no necesitamos un método separado
 
 
 # ============================================================================
@@ -617,16 +704,9 @@ if __name__ == "__main__":
     
     # Código de prueba
     test_code = """
-Factorial(n)
+Simple()
 begin
-    if (n ≤ 1) then
-    begin
-        return 1
-    end
-    else
-    begin
-        return n * call Factorial(n-1)
-    end
+    x ← 5
 end
     """
     
