@@ -423,19 +423,6 @@ end
     print("="*70)
     
     for proc_name, count in counts.items():
-        # print(f"\nProcedimiento: {proc_name}")
-        # print(f"  Asignaciones:      {count.assignments}")
-        # print(f"  Comparaciones:     {count.comparisons}")
-        # print(f"  Operaciones arit.: {count.arithmetic_ops}")
-        # print(f"  Llamadas:          {count.function_calls}")
-        # print(f"  Accesos a arrays:  {count.array_accesses}")
-        # print(f"  TOTAL:             {sum([
-        #     count.assignments,
-        #     count.comparisons,
-        #     count.arithmetic_ops,
-        #     count.function_calls,
-        #     count.array_accesses
-        # ])}")
         total_ops = (
             count.assignments +
             count.comparisons +
@@ -444,7 +431,16 @@ end
             count.array_accesses
         )
 
-        print(f"  TOTAL:             {total_ops}")
+        print("\n" + "=" * 70)
+        print("RESULTADOS")
+        print("=" * 70)
+        print(f"\nProcedimiento: {proc_name}")
+        print(f"  Asignaciones:      {count.assignments}")
+        print(f"  Comparaciones:     {count.comparisons}")
+        print(f"  Operaciones arit.: {count.arithmetic_ops}")
+        print(f"  Llamadas:          {count.function_calls}")
+        print(f"  Accesos a arrays:  {count.array_accesses}")
+        print(f"  TOTAL:             {total_ops}\n")
 
 
 
