@@ -1,36 +1,20 @@
 """
-Transformer: Convierte árbol de Lark a AST personalizado
-========================================================
+Transformer: Convierte árbol de Lark a AST personalizado (VERSIÓN FINAL CORREGIDA)
+===================================================================================
 
-Este módulo transforma el árbol genérico de Lark en nuestras
-clases de nodos específicas definidas en nodes.py
-
-El transformer usa el patrón Visitor de Lark, donde cada método
-corresponde a una regla de la gramática.
+Fix crítico: Asegurar que NO queden objetos Tree o Token sin transformar
 """
 
 from lark import Transformer, Token, Tree
 from typing import List, Union, Optional, Any
 
-# Importar todos los nodos que definimos
-from nodes import (
-    # Programa
+from .nodes import (
     ProgramNode, ClassDefNode, ProcedureNode,
-    
-    # Parámetros
     SimpleParamNode, ArrayParamNode, ClassParamNode,
-    
-    # Bloques y declaraciones
     BlockNode, ArrayDeclNode, ObjectDeclNode,
-    
-    # Sentencias
     ForNode, WhileNode, RepeatNode, IfNode,
     AssignmentNode, CallStatementNode, ReturnNode,
-    
-    # LValues
     VariableLValueNode, ArrayLValueNode, ObjectLValueNode,
-    
-    # Expresiones
     BinaryOpNode, UnaryOpNode,
     NumberNode, StringNode, BooleanNode, NullNode,
     IdentifierNode, ArrayAccessNode, RangeNode,
@@ -39,106 +23,127 @@ from nodes import (
 )
 
 
-# ============================================================================
-# TRANSFORMER PRINCIPAL
-# ============================================================================
-
 class PseudocodeTransformer(Transformer):
-    """
-    Transforma el árbol de Lark en nuestro AST personalizado.
+    """Transforma árbol de Lark a AST personalizado"""
     
-    Cada método transforma una regla específica de la gramática.
-    Los nombres de los métodos deben coincidir EXACTAMENTE con los
-    nombres de las reglas en grammar.lark
-    
-    IMPORTANTE: Configuramos visit_tokens=False para controlar
-    manualmente cuándo un Token se convierte en nodo.
-    """
+    def __init__(self, *args, **kwargs):
+        # CRÍTICO: visit_tokens=True para transformar tokens automáticamente
+        super().__init__(visit_tokens=True, *args, **kwargs)
     
     # ========================================================================
-    # HELPERS INTERNOS
+    # TRANSFORMACIÓN DE TOKENS (llamados automáticamente)
+    # ========================================================================
+    
+    def NUMBER(self, token):
+        """Transforma token NUMBER a NumberNode"""
+        value = token.value
+        return NumberNode(value=float(value) if '.' in value else int(value))
+    
+    def IDENTIFIER(self, token):
+        """Transforma token IDENTIFIER a IdentifierNode"""
+        return IdentifierNode(name=token.value)
+    
+    def STRING(self, token):
+        """Transforma token STRING a StringNode"""
+        content = token.value[1:-1] if len(token.value) >= 2 else token.value
+        return StringNode(value=content)
+    
+    def BOOLEAN(self, token):
+        """Transforma token BOOLEAN a BooleanNode"""
+        return BooleanNode(value=token.value in ('T', 'true'))
+    
+    # ========================================================================
+    # HELPERS MEJORADOS
     # ========================================================================
     
     @staticmethod
-    def _extract_string(item) -> str:
+    def _ensure_node(item):
         """
-        Extrae un string de un Token, IdentifierNode, o string directo.
+        Garantiza que item sea un nodo del AST (no Tree ni Token).
         
-        Args:
-            item: Token, IdentifierNode, o str
-            
-        Returns:
-            String limpio
+        CRÍTICO: Esta función previene errores de Tree/Token sin transformar.
         """
-        if isinstance(item, Token):
-            return item.value
-        elif isinstance(item, IdentifierNode):
-            return item.name
-        elif isinstance(item, str):
+        # Ya es un nodo del AST - OK
+        if isinstance(item, (
+            ProgramNode, ProcedureNode, BlockNode,
+            ForNode, WhileNode, RepeatNode, IfNode,
+            AssignmentNode, CallStatementNode, ReturnNode,
+            VariableLValueNode, ArrayLValueNode, ObjectLValueNode,
+            BinaryOpNode, UnaryOpNode,
+            NumberNode, StringNode, BooleanNode, NullNode,
+            IdentifierNode, ArrayAccessNode, RangeNode,
+            ObjectAccessNode, FunctionCallNode,
+            LengthNode, CeilingNode, FloorNode,
+            SimpleParamNode, ArrayParamNode, ClassParamNode,
+            ArrayDeclNode, ObjectDeclNode, ClassDefNode
+        )):
             return item
-        else:
-            return str(item)
-    
-    @staticmethod
-    def _extract_number(item) -> Union[int, float]:
-        """
-        Extrae un número de un Token, NumberNode, o número directo.
-        """
-        if isinstance(item, Token):
-            value = item.value
-            return float(value) if '.' in value else int(value)
-        elif isinstance(item, NumberNode):
-            return item.value
-        elif isinstance(item, (int, float)):
-            return item
-        else:
-            return int(item)
-    
-    @staticmethod
-    def _token_to_node(item):
-        """
-        Convierte un Token en el nodo apropiado.
         
-        Args:
-            item: Token, nodo, o valor primitivo
-            
-        Returns:
-            Nodo apropiado (NumberNode, IdentifierNode, etc.)
-        """
+        # ERROR: Tree no transformado
+        if isinstance(item, Tree):
+            raise ValueError(
+                f"Tree sin transformar encontrado: {item.data}. "
+                f"Falta método transformer para esta regla."
+            )
+        
+        # ERROR: Token no transformado (no debería pasar con visit_tokens=True)
         if isinstance(item, Token):
+            # Último recurso: convertir a nodo apropiado
             if item.type == 'NUMBER':
                 value = item.value
                 return NumberNode(value=float(value) if '.' in value else int(value))
             elif item.type == 'IDENTIFIER':
                 return IdentifierNode(name=item.value)
             elif item.type == 'STRING':
-                # Remover comillas
-                return StringNode(value=item.value[1:-1])
+                content = item.value[1:-1] if len(item.value) >= 2 else item.value
+                return StringNode(value=content)
             elif item.type == 'BOOLEAN':
                 return BooleanNode(value=item.value in ('T', 'true'))
-            elif item.type == 'NULL':
-                return NullNode()
             else:
-                # Otro tipo de token, retornar como está
-                return item
-        else:
-            # Ya es un nodo o valor
+                raise ValueError(f"Token inesperado: {item.type} = {item.value}")
+        
+        # Valores primitivos
+        if isinstance(item, (int, float)):
+            return NumberNode(value=item)
+        if isinstance(item, str):
+            return IdentifierNode(name=item)
+        if isinstance(item, bool):
+            return BooleanNode(value=item)
+        
+        # None
+        if item is None:
+            return None
+        
+        # Lista - transformar cada elemento
+        if isinstance(item, list):
+            return [PseudocodeTransformer._ensure_node(x) for x in item]
+        
+        # Tipo desconocido
+        raise ValueError(f"Tipo no soportado en _ensure_node: {type(item).__name__}")
+    
+    @staticmethod
+    def _extract_name(item) -> str:
+        """Extrae nombre de string de cualquier item"""
+        if isinstance(item, IdentifierNode):
+            return item.name
+        elif isinstance(item, str):
             return item
+        elif isinstance(item, Token):
+            return item.value
+        else:
+            raise ValueError(f"No se puede extraer nombre de {type(item).__name__}")
     
     # ========================================================================
     # PROGRAMA Y DEFINICIONES
     # ========================================================================
     
     def program(self, items):
-        """
-        program: (class_definition)* procedure_definition+
-        
-        Separa clases de procedimientos
-        """
+        """program: (class_definition)* procedure_definition+"""
         classes = []
         procedures = []
         
         for item in items:
+            item = self._ensure_node(item)
             if isinstance(item, ClassDefNode):
                 classes.append(item)
             elif isinstance(item, ProcedureNode):
@@ -147,93 +152,61 @@ class PseudocodeTransformer(Transformer):
         return ProgramNode(classes=classes, procedures=procedures)
     
     def class_definition(self, items):
-        """
-        class_definition: IDENTIFIER "{" attribute_list "}"
-        """
-        class_name = str(items[0])  # IDENTIFIER
+        """class_definition: IDENTIFIER "{" attribute_list "}"  """
+        name = self._extract_name(self._ensure_node(items[0]))
         attributes = items[1] if len(items) > 1 else []
-        
-        return ClassDefNode(name=class_name, attributes=attributes)
+        return ClassDefNode(name=name, attributes=attributes)
     
     def attribute_list(self, items):
-        """
-        attribute_list: IDENTIFIER+
-        """
-        return [str(item) for item in items]
+        """attribute_list: IDENTIFIER+"""
+        return [self._extract_name(self._ensure_node(item)) for item in items]
     
     def procedure_definition(self, items):
-        """
-        procedure_definition: IDENTIFIER "(" parameter_list? ")" block
-        """
-        # Usar helper para extraer el nombre
-        name = self._extract_string(items[0])
+        """procedure_definition: IDENTIFIER "(" parameter_list? ")" block"""
+        name = self._extract_name(self._ensure_node(items[0]))
         
-        # Puede tener parámetros o no
         if len(items) == 2:
-            # Sin parámetros: (nombre, block)
             parameters = []
-            body = items[1]
+            body = self._ensure_node(items[1])
         else:
-            # Con parámetros: (nombre, params, block)
             parameters = items[1] if isinstance(items[1], list) else []
-            body = items[2]
+            body = self._ensure_node(items[2])
         
         return ProcedureNode(name=name, parameters=parameters, body=body)
     
     def parameter_list(self, items):
-        """
-        parameter_list: parameter ("," parameter)*
-        """
-        return list(items)
+        """parameter_list: parameter ("," parameter)*"""
+        return [self._ensure_node(item) for item in items]
     
     def parameter(self, items):
-        """
-        parameter: class_param | array_param | simple_param
-        
-        Este método delega a los submétodos, pero asegura que 
-        retornamos el nodo correcto
-        """
-        # Si items tiene un solo elemento y ya es un nodo de parámetro, retornarlo
-        if len(items) == 1:
-            return items[0]
-        
-        # Si hay múltiples items, procesarlos
-        # (esto no debería pasar con nuestra gramática, pero por si acaso)
-        return items[0]
+        """parameter: class_param | array_param | simple_param"""
+        return self._ensure_node(items[0])
     
     def simple_param(self, items):
-        """
-        simple_param: IDENTIFIER
-        """
-        name = self._extract_string(items[0])
+        """simple_param: IDENTIFIER"""
+        name = self._extract_name(self._ensure_node(items[0]))
         return SimpleParamNode(name=name)
     
     def array_param(self, items):
-        """
-        array_param: IDENTIFIER ("[" NUMBER? "]")+
-        """
-        name = self._extract_string(items[0])
+        """array_param: IDENTIFIER ("[" NUMBER? "]")+"""
+        name = self._extract_name(self._ensure_node(items[0]))
         dimensions = []
         
-        # Los items restantes son los números dentro de []
         for item in items[1:]:
             if item is None:
-                dimensions.append(None)  # [] sin tamaño
+                dimensions.append(None)
             else:
-                dimensions.append(self._extract_number(item))
+                node = self._ensure_node(item)
+                if isinstance(node, NumberNode):
+                    dimensions.append(node.value)
+                else:
+                    dimensions.append(item)
         
         return ArrayParamNode(name=name, dimensions=dimensions)
     
     def class_param(self, items):
-        """
-        class_param: "Clase" IDENTIFIER
-        """
-        # El identificador puede estar en items[0] o items[1]
-        if len(items) > 1:
-            name = self._extract_string(items[1])
-        else:
-            name = self._extract_string(items[0])
-        
+        """class_param: "Clase" IDENTIFIER"""
+        name = self._extract_name(self._ensure_node(items[-1]))
         return ClassParamNode(name=name, class_name="Clase")
     
     # ========================================================================
@@ -241,427 +214,305 @@ class PseudocodeTransformer(Transformer):
     # ========================================================================
     
     def block(self, items):
-        """
-        block: "begin" declaration* statement* "end"
-        """
+        """block: "begin" declaration* statement* "end" """
         declarations = []
         statements = []
         
         for item in items:
-            if isinstance(item, (ArrayDeclNode, ObjectDeclNode)):
-                declarations.append(item)
-            elif item is not None:  # Ignorar None de tokens
-                statements.append(item)
+            if item is None:
+                continue
+            
+            node = self._ensure_node(item)
+            
+            if isinstance(node, (ArrayDeclNode, ObjectDeclNode)):
+                declarations.append(node)
+            else:
+                statements.append(node)
         
         return BlockNode(declarations=declarations, statements=statements)
     
     def local_array_decl(self, items):
-        """
-        local_array_decl: IDENTIFIER ("[" expression? "]")+
-        """
-        name = str(items[0])
-        dimensions = []
-        
-        for item in items[1:]:
-            dimensions.append(item)  # None si no hay expresión
-        
+        """local_array_decl: IDENTIFIER ("[" expression? "]")+"""
+        name = self._extract_name(self._ensure_node(items[0]))
+        dimensions = [self._ensure_node(item) for item in items[1:]]
         return ArrayDeclNode(name=name, dimensions=dimensions)
     
     def local_object_decl(self, items):
-        """
-        local_object_decl: "Clase" IDENTIFIER
-        """
-        class_name = "Clase"
-        object_name = str(items[1]) if len(items) > 1 else str(items[0])
-        
-        return ObjectDeclNode(class_name=class_name, object_name=object_name)
+        """local_object_decl: "Clase" IDENTIFIER"""
+        name = self._extract_name(self._ensure_node(items[-1]))
+        return ObjectDeclNode(class_name="Clase", object_name=name)
     
     # ========================================================================
     # SENTENCIAS
     # ========================================================================
     
     def for_statement(self, items):
-        """
-        for_statement: "for" IDENTIFIER "←" expression "to" expression "do" block
-        """
-        variable = self._extract_string(items[0])
-        start = self._token_to_node(items[1])
-        end = self._token_to_node(items[2])
-        body = items[3]
+        """for_statement: "for" IDENTIFIER "←" expression "to" expression "do" block"""
+        variable = self._extract_name(self._ensure_node(items[0]))
+        start = self._ensure_node(items[1])
+        end = self._ensure_node(items[2])
+        body = self._ensure_node(items[3])
         
         return ForNode(variable=variable, start=start, end=end, body=body)
     
     def while_statement(self, items):
-        """
-        while_statement: "while" "(" boolean_expression ")" "do" block
-        """
-        condition = self._token_to_node(items[0])
-        body = items[1]
-        
+        """while_statement: "while" "(" boolean_expression ")" "do" block"""
+        condition = self._ensure_node(items[0])
+        body = self._ensure_node(items[1])
         return WhileNode(condition=condition, body=body)
     
     def repeat_statement(self, items):
-        """
-        repeat_statement: "repeat" statement+ "until" "(" boolean_expression ")"
-        """
-        # Todos los items excepto el último son statements
-        # El último es la condición
-        statements = items[:-1]
-        condition = self._token_to_node(items[-1])
-        
-        # Crear un bloque con los statements
-        body = BlockNode(statements=list(statements))
-        
+        """repeat_statement: "repeat" statement+ "until" "(" boolean_expression ")"  """
+        statements = [self._ensure_node(item) for item in items[:-1]]
+        condition = self._ensure_node(items[-1])
+        body = BlockNode(statements=statements)
         return RepeatNode(body=body, condition=condition)
     
     def if_statement(self, items):
-        """
-        if_statement: "if" "(" boolean_expression ")" "then" block ("else" block)?
-        """
-        condition = self._token_to_node(items[0])
-        then_block = items[1]
-        else_block = items[2] if len(items) > 2 else None
-        
+        """if_statement: "if" "(" boolean_expression ")" "then" block ("else" block)?"""
+        condition = self._ensure_node(items[0])
+        then_block = self._ensure_node(items[1])
+        else_block = self._ensure_node(items[2]) if len(items) > 2 else None
         return IfNode(condition=condition, then_block=then_block, else_block=else_block)
     
     def assignment(self, items):
-        """
-        assignment: lvalue "←" expression
-        """
-        target = items[0]  # Ya está transformado por lvalue()
-        value = self._token_to_node(items[1])
+        """assignment: lvalue "←" expression"""
+        target = self._ensure_node(items[0])
+        value = self._ensure_node(items[1])
+        
+        # Asegurar que target es un LValueNode
+        if isinstance(target, IdentifierNode):
+            target = VariableLValueNode(name=target.name)
         
         return AssignmentNode(target=target, value=value)
     
     def call_statement(self, items):
-        """
-        call_statement: "call" IDENTIFIER "(" argument_list? ")"
-        """
-        name = str(items[0])
-        arguments = items[1] if len(items) > 1 and items[1] is not None else []
+        """call_statement: "call" IDENTIFIER "(" argument_list? ")"  """
+        name = self._extract_name(self._ensure_node(items[0]))
+        arguments = []
+        
+        if len(items) > 1 and items[1] is not None:
+            args = items[1]
+            if isinstance(args, list):
+                arguments = [self._ensure_node(arg) for arg in args]
+            else:
+                arguments = [self._ensure_node(args)]
         
         return CallStatementNode(name=name, arguments=arguments)
     
     def return_statement(self, items):
-        """
-        return_statement: "return" expression?
-        """
-        value = self._token_to_node(items[0]) if items else None
-        
+        """return_statement: "return" expression?"""
+        value = self._ensure_node(items[0]) if items else None
         return ReturnNode(value=value)
     
     def argument_list(self, items):
-        """
-        argument_list: expression ("," expression)*
-        """
-        return list(items)
+        """argument_list: expression ("," expression)*"""
+        return [self._ensure_node(item) for item in items]
     
     # ========================================================================
     # LVALUES
     # ========================================================================
     
-    def lvalue(self, items):
-        """
-        lvalue puede ser:
-        - IDENTIFIER (variable simple)
-        - IDENTIFIER ("[" expression "]")+ (array)
-        - IDENTIFIER ("." IDENTIFIER)+ (objeto)
-        - IDENTIFIER ("[" expression "]")+ ("." IDENTIFIER)+ (combinado)
+    def variable_lvalue(self, items):
+        """variable_lvalue: IDENTIFIER"""
+        name = self._extract_name(self._ensure_node(items[0]))
+        return VariableLValueNode(name=name)
+    
+    def array_object_lvalue(self, items):
+        """array_object_lvalue: IDENTIFIER ("[" expression "]")+ ("." IDENTIFIER)*"""
+        name = self._extract_name(self._ensure_node(items[0]))
         
-        La gramática inline define estas estructuras directamente.
-        """
-        # Transformar todos los items primero
-        transformed_items = [self._token_to_node(item) for item in items]
-        
-        # Extraer el nombre base
-        name = self._extract_string(transformed_items[0])
-        
-        # Separar los items restantes en indices y campos
         indices = []
         fields = []
         
-        i = 1
-        while i < len(transformed_items):
-            item = transformed_items[i]
-            
-            # Si es un nodo de expresión, es un índice de array
-            if isinstance(item, (BinaryOpNode, NumberNode, IdentifierNode, 
-                                UnaryOpNode, ArrayAccessNode, FunctionCallNode,
-                                StringNode, BooleanNode)):
-                indices.append(item)
-            # Si es un string simple, es un campo de objeto
-            elif isinstance(item, str):
-                fields.append(item)
-            # Si todavía es un Token IDENTIFIER (no transformado), es un campo
-            elif isinstance(item, Token) and item.type == 'IDENTIFIER':
-                fields.append(item.value)
-            
-            i += 1
+        for item in items[1:]:
+            node = self._ensure_node(item)
+            if isinstance(node, IdentifierNode):
+                fields.append(node.name)
+            elif isinstance(node, str):
+                fields.append(node)
+            else:
+                indices.append(node)
         
-        # Decidir qué tipo de lvalue crear basado en lo que encontramos
-        if len(indices) > 0 and len(fields) == 0:
-            # Solo índices: es un array
-            return ArrayLValueNode(name=name, indices=indices)
-        elif len(fields) > 0 and len(indices) == 0:
-            # Solo campos: es un objeto
-            return ObjectLValueNode(object_name=name, fields=fields)
-        elif len(indices) > 0 and len(fields) > 0:
-            # Ambos: tratamos como array por ahora
-            # (casos como A[i].campo son raros)
-            return ArrayLValueNode(name=name, indices=indices)
-        else:
-            # Ni índices ni campos: variable simple
-            return VariableLValueNode(name=name)
+        return ArrayLValueNode(name=name, indices=indices)
+    
+    def object_lvalue(self, items):
+        """object_lvalue: IDENTIFIER ("." IDENTIFIER)+"""
+        name = self._extract_name(self._ensure_node(items[0]))
+        fields = [self._extract_name(self._ensure_node(item)) for item in items[1:]]
+        return ObjectLValueNode(object_name=name, fields=fields)
     
     # ========================================================================
-    # EXPRESIONES: OPERADORES BINARIOS CON ALIAS
+    # EXPRESIONES: OPERADORES
     # ========================================================================
     
-    # Operadores aritméticos
     def add(self, items):
-        """Suma: left + right"""
         return BinaryOpNode(op="+", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def sub(self, items):
-        """Resta: left - right"""
         return BinaryOpNode(op="-", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def mul(self, items):
-        """Multiplicación: left * right"""
         return BinaryOpNode(op="*", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def div(self, items):
-        """División real: left / right"""
         return BinaryOpNode(op="/", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def mod(self, items):
-        """Módulo: left mod right"""
         return BinaryOpNode(op="mod", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def int_div(self, items):
-        """División entera: left div right"""
         return BinaryOpNode(op="div", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def pow(self, items):
-        """Potencia: base ^ exp"""
         return BinaryOpNode(op="^", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
-    # Operadores unarios
     def pos(self, items):
-        """Unario positivo: +x"""
-        return UnaryOpNode(op="+", operand=self._token_to_node(items[0]))
+        return UnaryOpNode(op="+", operand=self._ensure_node(items[0]))
     
     def neg(self, items):
-        """Unario negativo: -x"""
-        return UnaryOpNode(op="-", operand=self._token_to_node(items[0]))
+        return UnaryOpNode(op="-", operand=self._ensure_node(items[0]))
     
-    # Operadores relacionales
     def lt(self, items):
-        """Menor que: left < right"""
         return BinaryOpNode(op="<", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def gt(self, items):
-        """Mayor que: left > right"""
         return BinaryOpNode(op=">", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def le(self, items):
-        """Menor o igual: left ≤ right"""
         return BinaryOpNode(op="≤", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def ge(self, items):
-        """Mayor o igual: left ≥ right"""
         return BinaryOpNode(op="≥", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def eq(self, items):
-        """Igual: left = right"""
         return BinaryOpNode(op="=", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def ne(self, items):
-        """Diferente: left ≠ right"""
         return BinaryOpNode(op="≠", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
-    # Operadores booleanos
     def and_op(self, items):
-        """AND lógico: left and right"""
         return BinaryOpNode(op="and", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def or_op(self, items):
-        """OR lógico: left or right"""
         return BinaryOpNode(op="or", 
-                          left=self._token_to_node(items[0]), 
-                          right=self._token_to_node(items[1]))
+                          left=self._ensure_node(items[0]), 
+                          right=self._ensure_node(items[1]))
     
     def not_op(self, items):
-        """NOT lógico: not operand"""
-        return UnaryOpNode(op="not", operand=self._token_to_node(items[0]))
+        return UnaryOpNode(op="not", operand=self._ensure_node(items[0]))
     
     # ========================================================================
-    # EXPRESIONES: PRIMARIOS
+    # EXPRESIONES: PRIMARY
     # ========================================================================
     
-    def primary(self, items):
-        """
-        Primary puede ser muchas cosas diferentes.
-        Lark ya resolvió la ambigüedad, solo retornamos el resultado.
+    def identifier(self, items):
+        """identifier: IDENTIFIER"""
+        return self._ensure_node(items[0])
+    
+    def null_literal(self, items):
+        """null_literal: "NULL" """
+        return NullNode()
+    
+    def array_object_access(self, items):
+        """array_object_access: IDENTIFIER ("[" array_index "]")+ ("." IDENTIFIER)*"""
+        name = self._extract_name(self._ensure_node(items[0]))
         
-        Puede ser:
-        - NUMBER, STRING, BOOLEAN, NULL
-        - IDENTIFIER (variable simple)
-        - IDENTIFIER "[" ... "]" (array access)
-        - IDENTIFIER "." ... (object access)
-        - function_call, length, ceil, floor
-        - "(" expression ")"
-        """
-        if len(items) == 1:
-            # Transformar el token si es necesario
-            return self._token_to_node(items[0])
-        
-        # Si hay múltiples items, necesitamos construir el nodo apropiado
-        # Transformar todos los items primero
-        transformed_items = [self._token_to_node(item) for item in items]
-        
-        # Primer item es el nombre
-        if isinstance(transformed_items[0], Token) and transformed_items[0].type == 'IDENTIFIER':
-            name = transformed_items[0].value
-        elif isinstance(transformed_items[0], IdentifierNode):
-            name = transformed_items[0].name
-        elif isinstance(transformed_items[0], str):
-            name = transformed_items[0]
-        else:
-            # Ya es un nodo completo
-            return transformed_items[0]
-        
-        # Detectar si es array access o object access
-        has_indices = False
-        has_fields = False
         indices = []
         fields = []
         
-        for item in transformed_items[1:]:
-            # Si es un nodo de expresión, es índice de array
-            if isinstance(item, (BinaryOpNode, NumberNode, IdentifierNode, 
-                                UnaryOpNode, ArrayAccessNode, FunctionCallNode,
-                                RangeNode, StringNode, BooleanNode)):
-                indices.append(item)
-                has_indices = True
-            # Si es string, es campo de objeto
-            elif isinstance(item, str):
-                fields.append(item)
-                has_fields = True
-            # Si es Token IDENTIFIER (no transformado), es campo
-            elif isinstance(item, Token) and item.type == 'IDENTIFIER':
-                fields.append(item.value)
-                has_fields = True
+        for item in items[1:]:
+            node = self._ensure_node(item)
+            if isinstance(node, IdentifierNode):
+                fields.append(node.name)
+            elif isinstance(node, str):
+                fields.append(node)
+            else:
+                indices.append(node)
         
-        if has_indices:
-            return ArrayAccessNode(name=name, indices=indices)
-        elif has_fields:
-            return ObjectAccessNode(object_name=name, fields=fields)
-        else:
-            return IdentifierNode(name=name)
+        return ArrayAccessNode(name=name, indices=indices)
+    
+    def object_access(self, items):
+        """object_access: IDENTIFIER ("." IDENTIFIER)+"""
+        name = self._extract_name(self._ensure_node(items[0]))
+        fields = [self._extract_name(self._ensure_node(item)) for item in items[1:]]
+        return ObjectAccessNode(object_name=name, fields=fields)
     
     # ========================================================================
-    # EXPRESIONES: LITERALES Y VALORES
+    # EXPRESIONES: FUNCIONES
     # ========================================================================
-    
-    # Los tokens NUMBER, STRING, BOOLEAN, IDENTIFIER, NULL
-    # se transforman automáticamente por _token_to_node()
-    # cuando se procesan en primary, lvalue, etc.
-    
-    # No necesitamos métodos separados para ellos porque
-    # visit_tokens=False evita que se llamen automáticamente.
     
     def array_index(self, items):
-        """
-        array_index: expression | expression ".." expression
-        """
+        """array_index: expression | expression ".." expression"""
         if len(items) == 1:
-            return items[0]
+            return self._ensure_node(items[0])
         else:
-            # Es un rango
-            return RangeNode(start=items[0], end=items[1])
+            return RangeNode(
+                start=self._ensure_node(items[0]), 
+                end=self._ensure_node(items[1])
+            )
     
     def function_call(self, items):
-        """
-        function_call: "call" IDENTIFIER "(" argument_list? ")"
-        """
-        name = self._extract_string(items[0])
-        arguments = items[1] if len(items) > 1 and items[1] is not None else []
+        """function_call: "call" IDENTIFIER "(" argument_list? ")"  """
+        name = self._extract_name(self._ensure_node(items[0]))
+        arguments = []
+        
+        if len(items) > 1 and items[1] is not None:
+            args = items[1]
+            if isinstance(args, list):
+                arguments = [self._ensure_node(arg) for arg in args]
+            else:
+                arguments = [self._ensure_node(args)]
         
         return FunctionCallNode(name=name, arguments=arguments)
     
     def length_function(self, items):
-        """
-        length_function: "length" "(" IDENTIFIER ")"
-        """
-        array_name = self._extract_string(items[0])
-        return LengthNode(array_name=array_name)
+        """length_function: "length" "(" IDENTIFIER ")"  """
+        name = self._extract_name(self._ensure_node(items[0]))
+        return LengthNode(array_name=name)
     
     def ceiling_function(self, items):
-        """
-        ceiling_function: "┌" expression "┐" | "ceil" "(" expression ")"
-        """
-        return CeilingNode(expression=self._token_to_node(items[0]))
+        """ceiling_function: "┌" expression "┐" | "ceil" "(" expression ")"  """
+        return CeilingNode(expression=self._ensure_node(items[0]))
     
     def floor_function(self, items):
-        """
-        floor_function: "└" expression "┘" | "floor" "(" expression ")"
-        """
-        return FloorNode(expression=self._token_to_node(items[0]))
-    
-    def ceiling_function(self, items):
-        """
-        ceiling_function: "┌" expression "┐" | "ceil" "(" expression ")"
-        """
-        return CeilingNode(expression=items[0])
-    
-    def floor_function(self, items):
-        """
-        floor_function: "└" expression "┘" | "floor" "(" expression ")"
-        """
-        return FloorNode(expression=items[0])
-    
-    # ========================================================================
-    # CASOS ESPECIALES
-    # ========================================================================
-    
-    # NULL se maneja en _token_to_node()
-    # Ya no necesitamos un método separado
+        """floor_function: "└" expression "┘" | "floor" "(" expression ")"  """
+        return FloorNode(expression=self._ensure_node(items[0]))
 
 
 # ============================================================================
-# FUNCIÓN HELPER PARA USAR EL TRANSFORMER
+# FUNCIÓN HELPER
 # ============================================================================
 
-def transform_to_ast(lark_tree: Tree) -> ProgramNode:
+def transform_to_ast(lark_tree) -> ProgramNode:
     """
     Transforma un árbol de Lark en nuestro AST personalizado.
     
@@ -670,30 +521,39 @@ def transform_to_ast(lark_tree: Tree) -> ProgramNode:
         
     Returns:
         ProgramNode: Raíz del AST personalizado
-        
-    Example:
-        >>> from lark import Lark
-        >>> parser = Lark.open('grammar.lark', parser='earley', start='program')
-        >>> tree = parser.parse(pseudocode)
-        >>> ast = transform_to_ast(tree)
-        >>> print(ast.procedures[0].name)
     """
-    # visit_tokens=False hace que NO se llamen automáticamente 
-    # los métodos para tokens en todos los contextos
-    # Solo se transforman cuando están en expresiones
-    transformer = PseudocodeTransformer(visit_tokens=False)
-    return transformer.transform(lark_tree)
+    transformer = PseudocodeTransformer()
+    ast = transformer.transform(lark_tree)
+    
+    # Validación final: asegurar que no hay Tree ni Token
+    def validate_ast(node, path="root"):
+        if isinstance(node, Tree):
+            raise ValueError(f"Tree sin transformar en {path}: {node.data}")
+        if isinstance(node, Token):
+            raise ValueError(f"Token sin transformar en {path}: {node.type}={node.value}")
+        
+        if hasattr(node, '__dict__'):
+            for attr, value in node.__dict__.items():
+                if isinstance(value, (Tree, Token)):
+                    raise ValueError(f"Tree/Token en {path}.{attr}")
+                elif isinstance(value, list):
+                    for i, item in enumerate(value):
+                        validate_ast(item, f"{path}.{attr}[{i}]")
+                elif hasattr(value, '__dict__'):
+                    validate_ast(value, f"{path}.{attr}")
+    
+    validate_ast(ast)
+    return ast
 
 
 # ============================================================================
-# EJEMPLO DE USO
+# TEST
 # ============================================================================
 
 if __name__ == "__main__":
     from lark import Lark
     import os
     
-    # Cargar gramática
     script_dir = os.path.dirname(os.path.abspath(__file__))
     grammar_path = os.path.join(script_dir, '../parser', 'grammar.lark')
     
@@ -702,27 +562,37 @@ if __name__ == "__main__":
     
     parser = Lark(grammar, parser='earley', start='program')
     
-    # Código de prueba
     test_code = """
-Simple()
+BubbleSort(A[], n)
 begin
-    x ← 5
+    for i ← 1 to n-1 do
+    begin
+        for j ← 1 to n-i do
+        begin
+            if (A[j] > A[j+1]) then
+            begin
+                temp ← A[j]
+                A[j] ← A[j+1]
+                A[j+1] ← temp
+            end
+        end
+    end
 end
     """
     
     print("="*70)
-    print("TRANSFORMACIÓN LARK → AST")
+    print("TEST DEL TRANSFORMER")
     print("="*70)
     
-    # Parse
-    lark_tree = parser.parse(test_code)
-    print("\n1. Árbol de Lark:")
-    print(lark_tree.pretty())
-    
-    # Transform
-    ast = transform_to_ast(lark_tree)
-    print("\n2. AST Personalizado:")
-    print(ast)
-    print(f"\nProcedimiento: {ast.procedures[0].name}")
-    print(f"Parámetros: {[p.name for p in ast.procedures[0].parameters]}")
-    print(f"Tipo de body: {type(ast.procedures[0].body).__name__}")
+    try:
+        lark_tree = parser.parse(test_code)
+        ast = transform_to_ast(lark_tree)
+        
+        print("✓ Transformación exitosa")
+        print(f"✓ Procedimiento: {ast.procedures[0].name}")
+        print("✓ Sin Tree ni Token residuales")
+        
+    except Exception as e:
+        print(f"✗ ERROR: {e}")
+        import traceback
+        traceback.print_exc()
