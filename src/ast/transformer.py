@@ -13,7 +13,7 @@ from lark import Transformer, Token, Tree
 from typing import List, Union, Optional, Any
 
 # Importar todos los nodos que definimos
-from nodes import (
+from .nodes import (
     # Programa
     ProgramNode, ClassDefNode, ProcedureNode,
     
