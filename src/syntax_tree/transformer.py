@@ -8,7 +8,7 @@ Fix crítico: Asegurar que NO queden objetos Tree o Token sin transformar
 from lark import Transformer, Token, Tree
 from typing import List, Union, Optional, Any
 
-from .nodes import (
+from nodes import (
     ProgramNode, ClassDefNode, ProcedureNode,
     SimpleParamNode, ArrayParamNode, ClassParamNode,
     BlockNode, ArrayDeclNode, ObjectDeclNode,
@@ -563,18 +563,13 @@ if __name__ == "__main__":
     parser = Lark(grammar, parser='earley', start='program')
     
     test_code = """
-BubbleSort(A[], n)
+Simplified(A[], n)
 begin
     for i ← 1 to n-1 do
     begin
-        for j ← 1 to n-i do
+        for j ← i to n-i do
         begin
-            if (A[j] > A[j+1]) then
-            begin
-                temp ← A[j]
-                A[j] ← A[j+1]
-                A[j+1] ← temp
-            end
+            x ← A[i] + A[j]
         end
     end
 end
@@ -586,10 +581,16 @@ end
     
     try:
         lark_tree = parser.parse(test_code)
+        print("\n1. Árbol de Lark:")
+        print(lark_tree.pretty())
         ast = transform_to_ast(lark_tree)
-        
+
+        print("\n2. AST Personalizado:")
+        print(ast)
         print("✓ Transformación exitosa")
         print(f"✓ Procedimiento: {ast.procedures[0].name}")
+        print(f"Parámetros: {[p.name for p in ast.procedures[0].parameters]}")
+        print(f"Tipo de body: {type(ast.procedures[0].body).__name__}")
         print("✓ Sin Tree ni Token residuales")
         
     except Exception as e:

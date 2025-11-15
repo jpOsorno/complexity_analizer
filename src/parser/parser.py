@@ -20,8 +20,8 @@ from lark.exceptions import UnexpectedInput, UnexpectedToken
 # Importar nuestro AST y transformer
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
-from src.ast.nodes import ProgramNode
-from src.ast.transformer import transform_to_ast
+from syntax_tree.nodes import ProgramNode
+from syntax_tree.transformer import transform_to_ast
 
 
 # ============================================================================

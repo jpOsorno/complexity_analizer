@@ -21,7 +21,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.parser.parser import parse, validate_syntax, ParseError
-from src.ast.nodes import (
+from src.syntax_tree.nodes import (
     ProgramNode, ProcedureNode, ForNode, WhileNode, RepeatNode,
     IfNode, AssignmentNode, BinaryOpNode, NumberNode, IdentifierNode,
     ArrayParamNode, SimpleParamNode, ReturnNode
