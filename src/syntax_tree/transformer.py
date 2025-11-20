@@ -81,6 +81,25 @@ class PseudocodeTransformer(Transformer):
         
         # ERROR: Tree no transformado
         if isinstance(item, Tree):
+            # Manejar ambigüedades explícitas de Lark: Tree('_ambig', [...])
+            # Intentar resolver tomando el primer subárbol que se pueda
+            # convertir a nodo del AST. Esto evita errores con "dangling else"
+            # y otras ambigüedades constructivas.
+            if item.data == '_ambig':
+                last_exc = None
+                for child in item.children:
+                    try:
+                        return PseudocodeTransformer._ensure_node(child)
+                    except Exception as e:
+                        last_exc = e
+                        continue
+                # Si ninguno funcionó, lanzar el último error para diagnóstico
+                if last_exc:
+                    raise last_exc
+                raise ValueError(
+                    f"Tree ambigua (_ambig) sin subárbol transformable: {item}"
+                )
+
             raise ValueError(
                 f"Tree sin transformar encontrado: {item.data}. "
                 f"Falta método transformer para esta regla."

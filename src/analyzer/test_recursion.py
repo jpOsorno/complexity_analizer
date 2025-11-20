@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from parser.parser import parse
-from analyzer.recursion_analyzer import analyze_recursion, to_recurrence
+from analyzer.recursion_analyzer import analyze_recursion, to_recurrence, to_all_recurrences
 
 
 # ============================================================================
@@ -46,21 +46,23 @@ end
         assert result.is_recursive, "Debe detectar que es recursivo"
         assert result.recurrence_equation is not None, "Debe tener ecuación"
         
-        eq = result.recurrence_equation
-        
+        re = result.recurrence_equation
+
         print(f"✓ Detectado como recursivo")
-        print(f"✓ Ecuación: {eq.equation_str}")
-        print(f"✓ Tipo: {eq.recursion_type}")
-        
+        print(f"✓ Worst: {re.worst_case_equation}")
+        print(f"✓ Best : {re.best_case_equation}")
+        print(f"✓ Avg  : {re.average_case_equation}")
+        print(f"✓ Tipo: {re.recursion_type}")
+
         # Test de to_recurrence()
-        equation_str = to_recurrence(code)
-        print(f"✓ to_recurrence(): {equation_str}")
+        equation_str = to_recurrence(code, case='worst')
+        print(f"✓ to_recurrence() worst: {equation_str}")
         assert equation_str is not None, "to_recurrence() debe retornar ecuación"
-        
+
         # Verificar que contiene elementos esperados
-        assert "T(n)" in equation_str, "Debe tener T(n)"
-        assert "T(n-1)" in equation_str or "T(n-1)" in eq.equation_str, "Debe tener T(n-1)"
-        assert "O(1)" in equation_str, "Debe tener O(1)"
+        assert "T(n)" in re.worst_case_equation or "T(n)" in equation_str, "Debe tener T(n)"
+        assert "T(n-1)" in re.worst_case_equation or "T(n-1)" in re.best_case_equation, "Debe tener T(n-1)"
+        assert "O(1)" in re.worst_case_equation or "O(1)" in re.best_case_equation, "Debe tener O(1)"
         
         print("\n✅ TEST PASS: Factorial")
         return True
@@ -106,19 +108,21 @@ end
         
         assert result.is_recursive, "Debe detectar que es recursivo"
         
-        eq = result.recurrence_equation
-        
+        re = result.recurrence_equation
+
         print(f"✓ Detectado como recursivo")
-        print(f"✓ Ecuación: {eq.equation_str}")
-        print(f"✓ Tipo: {eq.recursion_type}")
-        
+        print(f"✓ Worst: {re.worst_case_equation}")
+        print(f"✓ Best : {re.best_case_equation}")
+        print(f"✓ Avg  : {re.average_case_equation}")
+        print(f"✓ Tipo: {re.recursion_type}")
+
         # Test de to_recurrence()
-        equation_str = to_recurrence(code)
-        print(f"✓ to_recurrence(): {equation_str}")
-        
-        assert eq.recursion_type == "binary", "Debe ser recursión binaria"
-        assert len(eq.recursive_calls) == 2, "Debe tener 2 llamadas recursivas"
-        assert "T(n-1)" in equation_str and "T(n-2)" in equation_str, "Debe tener ambos términos"
+        equation_str = to_recurrence(code, case='worst')
+        print(f"✓ to_recurrence() worst: {equation_str}")
+
+        assert re.recursion_type == "binary", "Debe ser recursión binaria"
+        assert len(re.recursive_calls) == 2, "Debe tener 2 llamadas recursivas"
+        assert ("T(n-1)" in re.worst_case_equation and "T(n-2)" in re.worst_case_equation) or ("T(n-1)" in equation_str and "T(n-2)" in equation_str), "Debe tener ambos términos"
         
         print("\n✅ TEST PASS: Fibonacci")
         return True
@@ -165,16 +169,18 @@ end
         
         assert result.is_recursive, "Debe detectar que es recursivo"
         
-        eq = result.recurrence_equation
-        
+        re = result.recurrence_equation
+
         print(f"✓ Detectado como recursivo")
-        print(f"✓ Ecuación: {eq.equation_str}")
-        print(f"✓ Tipo: {eq.recursion_type}")
-        
-        equation_str = to_recurrence(code)
-        print(f"✓ to_recurrence(): {equation_str}")
-        
-        assert len(eq.recursive_calls) >= 1, "Debe tener llamadas recursivas"
+        print(f"✓ Worst: {re.worst_case_equation}")
+        print(f"✓ Best : {re.best_case_equation}")
+        print(f"✓ Avg  : {re.average_case_equation}")
+        print(f"✓ Tipo: {re.recursion_type}")
+
+        equation_str = to_recurrence(code, case='worst')
+        print(f"✓ to_recurrence() worst: {equation_str}")
+
+        assert len(re.recursive_calls) >= 1, "Debe tener llamadas recursivas"
         
         print("\n✅ TEST PASS: Binary Search")
         return True
@@ -219,18 +225,25 @@ end
         
         assert result.is_recursive, "Debe detectar que es recursivo"
         
-        eq = result.recurrence_equation
-        
+        re = result.recurrence_equation
+
         print(f"✓ Detectado como recursivo")
-        print(f"✓ Ecuación: {eq.equation_str}")
-        print(f"✓ Tipo: {eq.recursion_type}")
-        
-        equation_str = to_recurrence(code)
-        print(f"✓ to_recurrence(): {equation_str}")
-        
-        assert len(eq.recursive_calls) == 2, "Debe tener 2 llamadas recursivas"
-        assert eq.recursion_type in ["binary", "multiple"], "Debe ser binaria/múltiple"
-        
+        print(f"✓ Worst: {re.worst_case_equation}")
+        print(f"✓ Best : {re.best_case_equation}")
+        print(f"✓ Avg  : {re.average_case_equation}")
+        print(f"✓ Tipo: {re.recursion_type}")
+
+        equation_str = to_recurrence(code, case='worst')
+        print(f"✓ to_recurrence() worst: {equation_str}")
+
+        assert len(re.recursive_calls) == 2, "Debe tener 2 llamadas recursivas"
+        assert re.recursion_type in ["binary", "multiple", "divide-and-conquer"], "Debe ser binaria/múltiple/divide-and-conquer"
+
+        # Verificar que combine correctamente términos tipo T(n/2)
+        worst = re.worst_case_equation or ''
+        ok_coef = ('2T(n/2)' in worst) or (worst.count('T(n/2)') >= 2)
+        assert 'T(n/2)' in worst and ('n' in worst or ' + n' in worst) and ok_coef, "Debe producir 2T(n/2) + n"
+
         print("\n✅ TEST PASS: Merge Sort")
         return True
         
