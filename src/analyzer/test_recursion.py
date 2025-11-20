@@ -198,7 +198,7 @@ end
 # ============================================================================
 # TEST 4: Merge Sort
 # ============================================================================
-
+# CASO QUE FALLA, HAY QUE SOLUCIONARLO
 def test_merge_sort():
     """Test: Merge Sort - recursión múltiple"""
     code = """
