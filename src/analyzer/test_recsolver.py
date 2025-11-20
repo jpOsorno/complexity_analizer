@@ -200,8 +200,8 @@ def test_integration_with_recursion_analyzer():
     print("="*70)
     
     try:
-        from src.parser.parser import parse
-        from src.analyzer.recursion_analyzer import analyze_recursion
+        from parser.parser import parse
+        from analyzer.recursion_analyzer import analyze_recursion
         
         code = """
 Factorial(n)
