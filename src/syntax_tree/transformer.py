@@ -8,7 +8,7 @@ Fix crítico: Asegurar que NO queden objetos Tree o Token sin transformar
 from lark import Transformer, Token, Tree
 from typing import List, Union, Optional, Any
 
-from nodes import (
+from syntax_tree.nodes import (
     ProgramNode, ClassDefNode, ProcedureNode,
     SimpleParamNode, ArrayParamNode, ClassParamNode,
     BlockNode, ArrayDeclNode, ObjectDeclNode,
