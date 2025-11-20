@@ -146,11 +146,15 @@ begin
     begin
         return -1
     end
-    else
+    
+    mid ← floor((left + right) / 2)
+    
+    if (A[mid] < x) then
     begin
-        mid ← floor((left + right) / 2)
         return call BinarySearch(A, mid+1, right, x)
     end
+    
+    return mid
 end
     """
     
