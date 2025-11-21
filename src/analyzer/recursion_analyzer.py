@@ -1,12 +1,9 @@
 """
-Analizador de Recursión - VERSIÓN MEJORADA CON MÚLTIPLES CASOS
-==============================================================
+Analizador de Recursión - VERSIÓN CORREGIDA PARA MERGE SORT
+===========================================================
 
-Mejoras:
-1. Genera ecuaciones para peor caso, mejor caso y caso promedio
-2. Analiza condicionales para detectar diferentes caminos de ejecución
-3. Identifica early exits y casos base
-4. Calcula complejidad promedio cuando es posible
+FIX CRÍTICO: Manejo correcto de múltiples llamadas recursivas
+simultáneas (no mutuamente excluyentes)
 """
 
 import sys
@@ -21,7 +18,7 @@ from analyzer.visitor import ASTVisitor
 
 
 # ============================================================================
-# ESTRUCTURAS DE DATOS MEJORADAS
+# ESTRUCTURAS DE DATOS
 # ============================================================================
 
 @dataclass
@@ -31,7 +28,7 @@ class RecursiveCall:
     arguments: List[ExpressionNode]
     depth_reduction: Optional[str] = None
     location: str = ""
-    path_condition: Optional[str] = None  # NUEVO: condición del camino
+    path_condition: Optional[str] = None
     in_return: bool = False
     return_group: Optional[int] = None
 
@@ -40,8 +37,6 @@ class RecursiveCall:
 class RecurrenceEquation:
     """
     Representa ecuaciones de recurrencia para diferentes casos.
-    
-    MEJORADO: Ahora contiene worst_case, best_case y average_case
     """
     function_name: str
     parameter: str
@@ -50,7 +45,7 @@ class RecurrenceEquation:
     base_case_condition: str
     base_case_cost: str
     
-    # NUEVO: Ecuaciones para cada caso
+    # Ecuaciones para cada caso
     worst_case_equation: str = ""
     best_case_equation: str = ""
     average_case_equation: str = ""
@@ -60,7 +55,7 @@ class RecurrenceEquation:
     non_recursive_cost: str = "O(1)"
     recursion_type: str = ""
     
-    # NUEVO: Explicaciones
+    # Explicaciones
     worst_case_explanation: str = ""
     best_case_explanation: str = ""
     average_case_explanation: str = ""
@@ -75,323 +70,240 @@ class RecurrenceEquation:
         """
         Genera ecuaciones para peor, mejor y caso promedio.
         
-        ESTRATEGIA:
-        - Peor caso: máxima profundidad de recursión
-        - Mejor caso: mínima profundidad (early exit si existe)
-        - Promedio: depende del tipo de recursión
+        FIX CRÍTICO: Detecta correctamente si las llamadas son:
+        1. Mutuamente excluyentes (en diferentes returns/if-else) → tomar MAX
+        2. Simultáneas (secuenciales en el mismo bloque) → SUMAR
         """
         if not self.recursive_calls:
-            # No hay recursión - todas iguales
             self.worst_case_equation = f"T({self.parameter}) = {self.base_case_cost}"
             self.best_case_equation = self.worst_case_equation
             self.average_case_equation = self.worst_case_equation
             return
         
-        # PEOR CASO: Analizar si las llamadas recursivas son simultáneas o
-        # mutuamente excluyentes (p. ej. ramas if/else). Si son exclusivas,
-        # la contribución es el máximo en vez de la suma.
-        candidate_calls = []
+        # ====================================================================
+        # PASO 1: Clasificar las llamadas recursivas
+        # ====================================================================
+        
+        from collections import defaultdict
+        
+        # Llamadas dentro de returns
+        in_return_calls: Dict[Optional[int], List[RecursiveCall]] = defaultdict(list)
+        # Llamadas fuera de returns (statements secuenciales)
+        statement_calls: List[RecursiveCall] = []
+        
         for call in self.recursive_calls:
+            if call.in_return:
+                in_return_calls[call.return_group].append(call)
+            else:
+                statement_calls.append(call)
+        
+        # ====================================================================
+        # PASO 2: Determinar si las llamadas son mutuamente excluyentes
+        # ====================================================================
+        
+        are_mutually_exclusive = False
+        
+        # Si hay múltiples grupos de return, son mutuamente excluyentes
+        if len(in_return_calls) > 1:
+            are_mutually_exclusive = True
+            self.worst_case_explanation = "Peor caso: llamadas en ramas mutuamente excluyentes"
+        
+        # Si hay mezcla de return y statements, analizar path_conditions
+        elif len(in_return_calls) == 1 and statement_calls:
+            # Verificar si las path_conditions son diferentes
+            path_conditions = set()
+            for call in self.recursive_calls:
+                if call.path_condition:
+                    path_conditions.add(call.path_condition)
+            
+            if len(path_conditions) > 1:
+                are_mutually_exclusive = True
+                self.worst_case_explanation = "Peor caso: llamadas en diferentes condiciones"
+        
+        # ====================================================================
+        # PASO 3: Construir términos recursivos
+        # ====================================================================
+        
+        terms_to_combine: List[str] = []
+        
+        # Procesar llamadas statement (SIEMPRE SUMABLES)
+        if statement_calls:
+            statement_terms = self._extract_terms(statement_calls)
+            terms_to_combine.extend(statement_terms)
+        
+        # Procesar llamadas en returns
+        if in_return_calls:
+            if len(in_return_calls) == 1:
+                # Un solo grupo → SUMABLES
+                group_calls = next(iter(in_return_calls.values()))
+                return_terms = self._extract_terms(group_calls)
+                terms_to_combine.extend(return_terms)
+            else:
+                # Múltiples grupos → MUTUAMENTE EXCLUYENTES
+                # Elegir la más costosa
+                representative_term = self._choose_most_expensive_group(in_return_calls)
+                terms_to_combine.append(representative_term)
+        
+        # ====================================================================
+        # PASO 4: Combinar términos
+        # ====================================================================
+        
+        if are_mutually_exclusive:
+            # Tomar el más costoso
+            worst_recursive_part = self._choose_most_expensive_term(terms_to_combine)
+        else:
+            # Sumar y compactar términos idénticos
+            worst_recursive_part = self._sum_and_compact_terms(terms_to_combine)
+            self.worst_case_explanation = "Peor caso: suma de llamadas simultáneas"
+        
+        # ====================================================================
+        # PASO 5: Construir ecuación final
+        # ====================================================================
+        
+        self.worst_case_equation = f"T({self.parameter}) = {worst_recursive_part} + {self.non_recursive_cost}"
+        
+        # ====================================================================
+        # PASO 6: Mejor caso y promedio
+        # ====================================================================
+        
+        has_early_exit = self._has_early_exit_pattern()
+        
+        if has_early_exit:
+            self.best_case_equation = f"T({self.parameter}) = {self.base_case_cost}"
+            self.best_case_explanation = "Mejor caso: early exit al caso base"
+        else:
+            self.best_case_equation = self.worst_case_equation
+            self.best_case_explanation = "Mejor caso igual al peor caso"
+        
+        self.average_case_equation = self._calculate_average_case()
+        self.average_case_explanation = self._explain_average_case()
+    
+    def _extract_terms(self, calls: List[RecursiveCall]) -> List[str]:
+        """
+        Extrae términos T(...) de una lista de llamadas.
+        
+        Returns:
+            Lista de términos como strings: ['T(n/2)', 'T(n-1)', ...]
+        """
+        terms = []
+        
+        for call in calls:
             dr = call.depth_reduction
             if not dr:
                 continue
+            
             reduction = dr.replace(" ", "").strip("()")
-
-            # Normalizar patrones reconocidos
+            
+            # Normalizar patrones conocidos
             if '/2' in reduction or 'n/2' in reduction or 'floor' in reduction:
                 term = 'T(n/2)'
             elif 'n-1' in reduction or '-1' in reduction:
                 term = 'T(n-1)'
+            elif 'n-2' in reduction or '-2' in reduction:
+                term = 'T(n-2)'
             elif self.parameter and self.parameter in reduction:
                 term = f"T({reduction})"
             elif 'n' in reduction:
                 term = f"T({reduction})"
             else:
-                # No reduce el parámetro principal -> ignorar para la suma
                 term = None
-
-            candidate_calls.append((call, term))
-
-        # Si no hay candidatos válidos, usar T(?) como fallback
-        if not any(term for _, term in candidate_calls):
-            worst_recursive_part = 'T(?)'
-            self.worst_case_explanation = 'Peor caso: llamadas recursivas no determinables'
-        else:
-            # Detectar si las llamadas están en distintas condiciones (mutuamente
-            # excluyentes). Si hay al menos dos llamadas con path_condition
-            # diferentes y no vacías, tratamos las llamadas como exclusivas.
-            path_conditions = set(c.path_condition for c, _ in candidate_calls if c.path_condition)
-            exclusive = len(path_conditions) > 1
-
-            terms = [t for _, t in candidate_calls if t]
-            # Separar llamadas que están dentro de `return` (podrían ser
-            # exclusivas si vienen de distintos `return`s) de las que no lo están.
-            from collections import defaultdict
-            in_return_groups: Dict[Optional[int], List[str]] = defaultdict(list)
-            non_return_terms: List[str] = []
-            for c, t in candidate_calls:
-                if not t:
-                    continue
-                if getattr(c, 'in_return', False):
-                    grp = getattr(c, 'return_group', None)
-                    in_return_groups[grp].append(t)
-                else:
-                    non_return_terms.append(t)
-
-            if exclusive:
-                # Elegir la "mayor" reducción detectada como representante.
-                # Preferir n/2 > n-1 > otros
-                preferred = None
-                for pref in ('T(n/2)', 'T(n-1)'):
-                    if pref in terms:
-                        preferred = pref
-                        break
-                if not preferred:
-                    preferred = terms[0]
-                worst_recursive_part = preferred
-                self.worst_case_explanation = 'Peor caso: ramas mutuamente excluyentes, tomar la más costosa'
+            
+            if term:
+                terms.append(term)
+        
+        return terms
+    
+    def _sum_and_compact_terms(self, terms: List[str]) -> str:
+        """
+        Suma términos y compacta idénticos.
+        
+        Ejemplos:
+        - ['T(n/2)', 'T(n/2)'] → '2T(n/2)'
+        - ['T(n-1)', 'T(n-2)'] → 'T(n-1) + T(n-2)'
+        - ['T(n/2)', 'T(n/2)', 'T(n-1)'] → '2T(n/2) + T(n-1)'
+        """
+        if not terms:
+            return 'T(?)'
+        
+        from collections import Counter
+        
+        # Normalizar términos (sin espacios) para contar
+        normalized = {}
+        for t in terms:
+            key = ''.join(t.split())
+            if key not in normalized:
+                normalized[key] = t
+        
+        # Contar ocurrencias
+        counter = Counter(''.join(t.split()) for t in terms)
+        
+        # Construir resultado
+        result_parts = []
+        for key, count in sorted(counter.items()):
+            readable = normalized.get(key, key)
+            
+            if count == 1:
+                result_parts.append(readable)
             else:
-                # No exclusivas -> sumar contribuciones no-return y además
-                # considerar las llamadas dentro de return como exclusivas entre sí.
-                from collections import Counter, defaultdict
-                parts = []
-
-                if non_return_terms:
-                    # Normalizar términos para que diferencias en espacios u
-                    # otros formatos equivalentes se cuenten juntos.
-                    # Usamos una clave canónica sin espacios para contar,
-                    # y guardamos una representación legible para salida.
-                    canon_map: Dict[str, str] = {}
-                    canon_keys = []
-                    for t in non_return_terms:
-                        key = "".join(t.split())
-                        canon_keys.append(key)
-                        # Guardar la primera representación legible encontrada
-                        if key not in canon_map:
-                            canon_map[key] = t
-
-                    cnt = Counter(canon_keys)
-                    for key, c in cnt.items():
-                        term = canon_map.get(key, key)
-                        if c > 1 and term.startswith('T('):
-                            parts.append(f"{c}{term}")
-                        else:
-                            # Si no es una T(...) o no queremos multiplicar,
-                            # agregar tantas ocurrencias como haya (para suma)
-                            if c > 1:
-                                parts.extend([term] * c)
-                            else:
-                                parts.append(term)
-
-                # Procesar grupos de llamadas in-return
-                if in_return_groups:
-                    # Si sólo hay UN grupo, todas las llamadas vienen del mismo
-                    # `return` (por ejemplo, `return f(n-1) + f(n-2)`), por lo que
-                    # deben sumarse.
-                    if len(in_return_groups) == 1:
-                        group_terms = next(iter(in_return_groups.values()))
-                        # Normalizar y contar dentro del grupo
-                        canon_map_g: Dict[str, str] = {}
-                        keys_g = []
-                        for t in group_terms:
-                            key = "".join(t.split())
-                            keys_g.append(key)
-                            if key not in canon_map_g:
-                                canon_map_g[key] = t
-                        cnt_g = Counter(keys_g)
-                        for key, c in cnt_g.items():
-                            term = canon_map_g.get(key, key)
-                            if c > 1 and term.startswith('T('):
-                                parts.append(f"{c}{term}")
-                            else:
-                                if c > 1:
-                                    parts.extend([term] * c)
-                                else:
-                                    parts.append(term)
-                    else:
-                        # Hay múltiples grupos (llamadas en distintos `return`),
-                        # tratamos los grupos como alternativas mutuamente
-                        # excluyentes y elegimos la representante más costosa
-                        representatives = []
-                        for grp_terms in in_return_groups.values():
-                            preferred = None
-                            for pref in ('T(n/2)', 'T(n-1)'):
-                                if pref in grp_terms:
-                                    preferred = pref
-                                    break
-                            if not preferred:
-                                preferred = grp_terms[0]
-                            representatives.append(preferred)
-
-                        preferred_in = None
-                        for pref in ('T(n/2)', 'T(n-1)'):
-                            if pref in representatives:
-                                preferred_in = pref
-                                break
-                        if not preferred_in:
-                            preferred_in = representatives[0]
-                        parts.append(preferred_in)
-
-                # Compactar términos recursivos idénticos (p.ej. T(n/2) + T(n/2) -> 2T(n/2))
-                import re
-                from collections import Counter
-
-                # Separar términos T(...) y otros
-                t_counter = Counter()
-                t_repr: Dict[str, str] = {}
-                others: List[str] = []
-
-                for p in parts:
-                    if not p or p.strip() == '':
-                        continue
-                    # Detectar forma 'kT(...)' o 'T(...)'
-                    m = re.match(r'^\s*(\d+)\s*(T\(.*\))\s*$', p)
-                    if m:
-                        k = int(m.group(1))
-                        base = m.group(2)
-                        key = ''.join(base.split())
-                        t_counter[key] += k
-                        t_repr[key] = base
-                    elif p.strip().startswith('T('):
-                        base = p.strip()
-                        key = ''.join(base.split())
-                        t_counter[key] += 1
-                        t_repr[key] = base
-                    else:
-                        others.append(p)
-
-                final_parts: List[str] = []
-                # Añadir términos recursivos compactados
-                for key, cnt in t_counter.items():
-                    base = t_repr.get(key, key)
-                    if cnt == 1:
-                        final_parts.append(base)
-                    else:
-                        final_parts.append(f"{cnt}{base}")
-
-                # Mantener el orden relativo: primero recursivos compactados, luego otros
-                final_parts.extend(others)
-
-                worst_recursive_part = ' + '.join(final_parts) if final_parts else 'T(?)'
-                self.worst_case_explanation = 'Peor caso: combinación de llamadas (sumadas y exclusivas)'
-
-        self.worst_case_equation = f"T({self.parameter}) = {worst_recursive_part} + {self.non_recursive_cost}"
-        # Pasada final: combinar términos recursivos idénticos en la cadena
-        # resultante (ej. 'T(n/2) + T(n/2) + n' -> '2T(n/2) + n'). Esto actúa
-        # como respaldo si otras heurísticas fallan.
-        try:
-            import re
-            from collections import OrderedDict
-
-            parts = [p.strip() for p in worst_recursive_part.split('+') if p.strip()]
-            t_counts = {}
-            t_order = []
-            others = []
-
-            for p in parts:
-                # Detectar formas como 'kT(...)' o 'T(...)'
-                m = re.match(r'^\s*(?:(\d+)\s*)?(T\(.+\))\s*$', p)
-                if m:
-                    k = int(m.group(1)) if m.group(1) else 1
-                    base = m.group(2)
-                    key = ''.join(base.split())
-                    if key not in t_counts:
-                        t_counts[key] = 0
-                        t_order.append(key)
-                    t_counts[key] += k
-                    # conservar una representación legible
-                    if key not in t_order:
-                        t_order.append(key)
-                else:
-                    others.append(p)
-
-            new_parts = []
-            for key in t_order:
-                cnt = t_counts.get(key, 0)
-                if cnt <= 0:
-                    continue
-                # obtener base readable (reconstruir T(...) desde key)
-                # key es sin espacios, buscamos en parts
-                readable = None
-                for p in parts:
-                    if ''.join(p.split()).endswith(key):
-                        # extraer la parte T(...) si está presente
-                        m2 = re.search(r'(T\(.+\))', p)
-                        if m2:
-                            readable = m2.group(1)
-                            break
-                if not readable:
-                    # fallback
-                    readable = key
-                if cnt == 1:
-                    new_parts.append(readable)
-                else:
-                    new_parts.append(f"{cnt}{readable}")
-
-            # añadir otros (manteniendo el orden aproximado)
-            new_parts.extend(others)
-
-            if new_parts:
-                worst_recursive_part = ' + '.join(new_parts)
-                self.worst_case_equation = f"T({self.parameter}) = {worst_recursive_part} + {self.non_recursive_cost}"
-        except Exception:
-            # No bloquear si algo falla en esta pasada final
-            pass
+                result_parts.append(f"{count}{readable}")
         
-        # MEJOR CASO: Detección de early exit
-        has_early_exit = self._has_early_exit_pattern()
+        return ' + '.join(result_parts)
+    
+    def _choose_most_expensive_term(self, terms: List[str]) -> str:
+        """
+        Elige el término más costoso de una lista.
         
-        if has_early_exit:
-            # Mejor caso: llega al caso base inmediatamente
-            self.best_case_equation = f"T({self.parameter}) = {self.base_case_cost}"
-            self.best_case_explanation = "Mejor caso: se alcanza el caso base directamente (early exit)"
-        else:
-            # Sin early exit, mejor caso = peor caso
-            self.best_case_equation = self.worst_case_equation
-            self.best_case_explanation = "Mejor caso igual al peor caso (sin early exit)"
+        Orden de costo: T(n/2) < T(n-1) < T(n-2) < otros
+        """
+        if not terms:
+            return 'T(?)'
         
-        # CASO PROMEDIO: Depende del tipo de recursión
-        self.average_case_equation = self._calculate_average_case()
-        self.average_case_explanation = self._explain_average_case()
+        # Prioridad de búsqueda (del más costoso al menos costoso)
+        priorities = ['T(n-2)', 'T(n-1)', 'T(n/2)']
+        
+        for priority in priorities:
+            if priority in terms:
+                return priority
+        
+        # Si no hay ninguno conocido, retornar el primero
+        return terms[0]
+    
+    def _choose_most_expensive_group(self, groups: Dict[Optional[int], List[RecursiveCall]]) -> str:
+        """
+        Elige el grupo más costoso cuando hay múltiples grupos de return.
+        """
+        all_terms = []
+        
+        for group_calls in groups.values():
+            group_terms = self._extract_terms(group_calls)
+            if group_terms:
+                # Tomar el más costoso del grupo
+                best_term = self._choose_most_expensive_term(group_terms)
+                all_terms.append(best_term)
+        
+        if not all_terms:
+            return 'T(?)'
+        
+        # Elegir el más costoso entre los representantes
+        return self._choose_most_expensive_term(all_terms)
     
     def _has_early_exit_pattern(self) -> bool:
-        """
-        Detecta si hay patrón de early exit.
-        
-        Patrón común: if (condición) then return caso_base
-        """
-        # Si hay condición de caso base clara, hay early exit
+        """Detecta patrón de early exit"""
         if self.base_case_condition and self.base_case_condition != "unknown":
             return True
         return False
     
     def _calculate_average_case(self) -> str:
-        """
-        Calcula ecuación de caso promedio según tipo de recursión.
-        
-        CASOS:
-        1. Lineal (n-1): Promedio = Peor caso
-        2. Divide and Conquer (n/2): Promedio = Peor caso
-        3. Binaria (n-1, n-2): Promedio ≈ Peor caso
-        4. Con early exit: Entre mejor y peor caso
-        """
+        """Calcula ecuación de caso promedio"""
         recursion_type = self._classify_recursion()
         
         if recursion_type in ["linear", "divide-and-conquer", "simple"]:
-            # Promedio = peor caso para estos tipos
             return self.worst_case_equation
-        
         elif recursion_type == "binary":
-            # Fibonacci: promedio = peor caso (exponencial)
             return self.worst_case_equation
-        
         elif self._has_early_exit_pattern():
-            # Con early exit: promedio está entre mejor y peor
-            # Usamos la ecuación del peor caso pero indicamos que puede ser mejor
             return self.worst_case_equation.replace("T(", "T_avg(")
-        
         else:
-            # Por defecto: promedio = peor caso
             return self.worst_case_equation
     
     def _explain_average_case(self) -> str:
@@ -399,11 +311,11 @@ class RecurrenceEquation:
         recursion_type = self._classify_recursion()
         
         if self._has_early_exit_pattern():
-            return "Caso promedio: entre el mejor y peor caso, depende de la entrada"
+            return "Caso promedio: entre el mejor y peor caso"
         elif recursion_type in ["linear", "divide-and-conquer"]:
-            return "Caso promedio igual al peor caso (comportamiento determinista)"
+            return "Caso promedio igual al peor caso"
         elif recursion_type == "binary":
-            return "Caso promedio similar al peor caso (exponencial)"
+            return "Caso promedio similar al peor caso"
         else:
             return "Caso promedio aproximado al peor caso"
     
@@ -423,7 +335,6 @@ class RecurrenceEquation:
                     return "divide-and-conquer"
             return "simple"
         elif num_calls == 2:
-            # Si ambas llamadas reducen a n/2, es divide-and-conquer (ej. MergeSort)
             drs = [c.depth_reduction or '' for c in self.recursive_calls]
             if all(d and ('/2' in d or 'n/2' in d or d == 'n/2') for d in drs):
                 return 'divide-and-conquer'
@@ -432,7 +343,7 @@ class RecurrenceEquation:
             return "multiple"
     
     def to_dict(self) -> dict:
-        """Convierte a diccionario para serialización"""
+        """Convierte a diccionario"""
         return {
             "function_name": self.function_name,
             "parameter": self.parameter,
@@ -459,7 +370,7 @@ class RecurrenceEquation:
 
 @dataclass
 class RecursionAnalysisResult:
-    """Resultado del análisis de recursión con múltiples casos"""
+    """Resultado del análisis de recursión"""
     procedure_name: str
     is_recursive: bool
     recurrence_equation: Optional[RecurrenceEquation] = None
@@ -469,34 +380,24 @@ class RecursionAnalysisResult:
     calls_count: int = 0
     
     def to_recurrence_worst(self) -> Optional[str]:
-        """Retorna ecuación del PEOR CASO"""
         if not self.is_recursive or not self.recurrence_equation:
             return None
         return self.recurrence_equation.worst_case_equation
     
     def to_recurrence_best(self) -> Optional[str]:
-        """Retorna ecuación del MEJOR CASO"""
         if not self.is_recursive or not self.recurrence_equation:
             return None
         return self.recurrence_equation.best_case_equation
     
     def to_recurrence_average(self) -> Optional[str]:
-        """Retorna ecuación del CASO PROMEDIO"""
         if not self.is_recursive or not self.recurrence_equation:
             return None
         return self.recurrence_equation.average_case_equation
     
     def to_recurrence(self) -> Optional[str]:
-        """Retorna ecuación del peor caso (por compatibilidad)"""
         return self.to_recurrence_worst()
     
     def get_all_equations(self) -> Optional[Dict[str, str]]:
-        """
-        Retorna todas las ecuaciones.
-        
-        Returns:
-            Dict con keys: 'worst', 'best', 'average'
-        """
         if not self.is_recursive or not self.recurrence_equation:
             return None
         
@@ -508,11 +409,11 @@ class RecursionAnalysisResult:
 
 
 # ============================================================================
-# VISITOR MEJORADO
+# VISITOR (sin cambios en la lógica de detección)
 # ============================================================================
 
 class RecursionAnalyzerVisitor(ASTVisitor):
-    """Visitor que analiza recursión con detección de múltiples casos"""
+    """Visitor que analiza recursión"""
     
     def __init__(self, procedure_name: str):
         self.procedure_name = procedure_name
@@ -523,17 +424,11 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         self.current_condition = None
         self.parameter_name = None
         self.array_param_name = None
-        # Mapa para variables locales (e.g., mid -> floor((left+right)/2))
         self.local_var_map: Dict[str, str] = {}
         self.has_merge = False
-        
-        # NUEVO: Tracking de caminos
         self.current_path_conditions: List[str] = []
         self.has_early_exit = False
         self.current_in_return = False
-        # Tracking de grupos de return para distinguir llamadas dentro
-        # del mismo `return` (sumables) de llamadas en distintos returns
-        # (mutuamente excluyentes)
         self.current_return_group: Optional[int] = None
         self.return_group_counter: int = 0
     
@@ -544,13 +439,11 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         return None
     
     def visit_procedure(self, node: ProcedureNode):
-        # Identificar parámetro principal
         if node.parameters:
             first_param = node.parameters[0]
             if isinstance(first_param, SimpleParamNode):
                 self.parameter_name = first_param.name
             elif isinstance(first_param, ArrayParamNode):
-                # Guardar nombre del array para poder ignorarlo al analizar argumentos
                 try:
                     self.array_param_name = first_param.name
                 except Exception:
@@ -562,47 +455,34 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         return self._build_result()
     
     def visit_if(self, node: IfNode):
-        """
-        Analiza IF con tracking de caminos.
-        
-        MEJORA: Detecta si el THEN es caso base (early exit)
-        """
         old_condition = self.current_condition
         condition_str = self._condition_to_string(node.condition)
         self.current_condition = condition_str
         
-        # Agregar condición al camino
         self.current_path_conditions.append(condition_str)
         
         old_base_flag = self.in_base_case
         
-        # Verificar si THEN es caso base (no tiene llamadas recursivas)
         has_recursive_call_in_then = self._has_recursive_call(node.then_block)
         
         if not has_recursive_call_in_then:
-            # THEN es caso base
             self.in_base_case = True
             self.has_early_exit = True
             cost = self._estimate_cost(node.then_block)
             self.base_cases.append((condition_str, cost))
         
-        # Visitar THEN (IMPORTANTE: siempre visitar, puede haber IFs anidados)
         node.then_block.accept(self)
         self.in_base_case = old_base_flag
         
-        # Limpiar condición del THEN antes de procesar ELSE
         self.current_path_conditions.pop()
         
-        # Visitar ELSE (caso recursivo)
         if node.else_block:
-            # Agregar condición negada para el ELSE
             negated_condition = f"not ({condition_str})"
             self.current_path_conditions.append(negated_condition)
             
             self.in_base_case = False
             node.else_block.accept(self)
             
-            # Limpiar condición del ELSE
             self.current_path_conditions.pop()
         
         self.current_condition = old_condition
@@ -619,18 +499,15 @@ class RecursionAnalyzerVisitor(ASTVisitor):
     def visit_function_call(self, node: FunctionCallNode):
         if node.name == self.procedure_name:
             call = self._analyze_recursive_call(node)
-            # Agregar condición del camino
             if self.current_path_conditions:
                 call.path_condition = " AND ".join(self.current_path_conditions)
-            # Indicar si la llamada está dentro de un return
             call.in_return = self.current_in_return
-            # Asociar al grupo de return actual (si existe)
             call.return_group = self.current_return_group
             self.recursive_calls.append(call)
-        # Detectar llamadas a Merge (operación lineal sobre la partición)
+        
         if node.name and node.name.lower() == 'merge':
             self.has_merge = True
-
+        
         for arg in node.arguments:
             arg.accept(self)
     
@@ -640,39 +517,29 @@ class RecursionAnalyzerVisitor(ASTVisitor):
             if self.current_path_conditions:
                 call.path_condition = " AND ".join(self.current_path_conditions)
             call.in_return = self.current_in_return
-            # Asociar al grupo de return actual (aunque statements raramente
-            # aparecen dentro de un return, lo registramos por completitud)
             call.return_group = self.current_return_group
             self.recursive_calls.append(call)
-        # Detectar llamadas a Merge como statement
+        
         if node.name and node.name.lower() == 'merge':
             self.has_merge = True
-
+        
         for arg in node.arguments:
             arg.accept(self)
     
     def visit_return(self, node: ReturnNode):
-        # Marcar contexto de return para que llamadas recursivas dentro se
-        # identifiquen como 'in_return'. Esto ayuda a detectar calls mutuamente
-        # excluyentes (ej. Binary Search usa return en ramas).
         old_in_return = self.current_in_return
         old_return_group = self.current_return_group
-        # Nuevo id de grupo para las llamadas dentro de este `return`
         self.return_group_counter += 1
         self.current_return_group = self.return_group_counter
         self.current_in_return = True
         if node.value:
             node.value.accept(self)
         self.current_in_return = old_in_return
-        # Restaurar el grupo previo
         self.current_return_group = old_return_group
     
     def visit_assignment(self, node: AssignmentNode):
-        # Visitar el valor primero para procesar subexpresiones
         node.value.accept(self)
-
-        # Registrar asignaciones simples a variables locales para inferencia
-        # (ej. mid ← floor((left + right) / 2))
+        
         target = node.target
         try:
             if isinstance(target, VariableLValueNode):
@@ -683,26 +550,14 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         except Exception:
             pass
     
-    # ========================================================================
-    # MÉTODOS AUXILIARES
-    # ========================================================================
-    
     def _has_recursive_call(self, block: BlockNode) -> bool:
-        """
-        Verifica si un bloque contiene llamadas recursivas.
-        
-        IMPORTANTE: Debe recorrer TODOS los nodos, incluyendo IFs anidados
-        """
         class CallFinder(ASTVisitor):
             def __init__(self, target_name):
                 self.target_name = target_name
                 self.found = False
             
-            def visit_program(self, node): 
-                pass
-            
-            def visit_procedure(self, node): 
-                pass
+            def visit_program(self, node): pass
+            def visit_procedure(self, node): pass
             
             def visit_for(self, node): 
                 if not self.found:
@@ -737,7 +592,6 @@ class RecursionAnalyzerVisitor(ASTVisitor):
                 if node.name == self.target_name:
                     self.found = True
                 else:
-                    # Seguir buscando en los argumentos
                     for arg in node.arguments:
                         if not self.found:
                             arg.accept(self)
@@ -746,7 +600,6 @@ class RecursionAnalyzerVisitor(ASTVisitor):
                 if node.name == self.target_name:
                     self.found = True
                 else:
-                    # Seguir buscando en los argumentos
                     for arg in node.arguments:
                         if not self.found:
                             arg.accept(self)
@@ -760,7 +613,6 @@ class RecursionAnalyzerVisitor(ASTVisitor):
                 if not self.found:
                     node.operand.accept(self)
             
-            # Para los nodos terminales, no hacer nada
             def visit_number(self, node): pass
             def visit_string(self, node): pass
             def visit_boolean(self, node): pass
@@ -772,12 +624,10 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         return finder.found
     
     def _condition_to_string(self, condition: ExpressionNode) -> str:
-        """Convierte condición a string normalizado"""
         result = self._expr_to_string(condition)
         return " ".join(result.split())
     
     def _expr_to_string(self, expr: ExpressionNode) -> str:
-        """Convierte expresión a string"""
         if isinstance(expr, NumberNode):
             return str(expr.value)
         elif isinstance(expr, IdentifierNode):
@@ -791,16 +641,13 @@ class RecursionAnalyzerVisitor(ASTVisitor):
             return f"{expr.op}{operand}"
         elif isinstance(expr, BooleanNode):
             return str(expr.value)
-        # Añadir soporte para nodos adicionales usados en la gramática
         elif isinstance(expr, ArrayAccessNode):
-            # A[ind1][ind2]... -> representamos índices entre corchetes
             indices = ",".join(self._expr_to_string(i) for i in expr.indices)
             return f"{expr.name}[{indices}]"
         elif isinstance(expr, FunctionCallNode):
             args = ",".join(self._expr_to_string(a) for a in expr.arguments)
             return f"call {expr.name}({args})"
         elif hasattr(expr, 'expression') and type(expr).__name__ in ('FloorNode', 'CeilingNode'):
-            # Floor/Ceiling wrappers
             inner = self._expr_to_string(getattr(expr, 'expression'))
             if type(expr).__name__ == 'FloorNode':
                 return f"floor({inner})"
@@ -812,64 +659,65 @@ class RecursionAnalyzerVisitor(ASTVisitor):
             return "?"
     
     def _analyze_recursive_call(self, node: FunctionCallNode) -> RecursiveCall:
-        """Analiza llamada recursiva"""
         depth_reduction = None
-
-        # Buscar en todos los argumentos la expresión que reduzca el parámetro
+        
         if node.arguments:
-            # Priorizar argumentos que contengan el nombre del parámetro
-            for arg in node.arguments:
-                arg_str = self._expr_to_string(arg).replace(" ", "")
-                if self.parameter_name and self.parameter_name in arg_str:
-                    depth_reduction = arg_str
-                    break
-
-            # Si el argumento contiene una variable local (ej. mid, q) mapeada,
-            # intentar resolverla a una reducción (ej. n/2)
-            if depth_reduction is None and self.local_var_map:
-                for varname, mapped in self.local_var_map.items():
-                    for arg in node.arguments:
-                        arg_str = self._expr_to_string(arg).replace(" ", "")
-                        if varname in arg_str:
-                            # Heurística: si la asignación contiene '/2' o 'floor',
-                            # consideramos una reducción a la mitad
-                            if ('/2' in mapped) or ('floor' in mapped) or ('(left+right)/2' in mapped):
-                                depth_reduction = 'n/2'
-                            else:
-                                depth_reduction = mapped
+            # ESTRATEGIA MEJORADA (igual que para statements):
+            # 1. Buscar argumentos que referencien variables mapeadas (ej. q -> n/2)
+            # 2. Si el argumento es una variable mapeada a floor(...)/2, es n/2
+            # 3. Caso contrario, usar heurística por parámetros
+            
+            # Paso 1: Intentar por variables locales mapeadas PRIMERO
+            if self.local_var_map:
+                for arg in node.arguments:
+                    arg_str = self._expr_to_string(arg).replace(" ", "")
+                    
+                    # Ignorar el array (primer parámetro)
+                    if self.array_param_name and arg_str == self.array_param_name:
+                        continue
+                    
+                    # Verificar si el argumento ES una variable mapeada
+                    if arg_str in self.local_var_map:
+                        mapped = self.local_var_map[arg_str]
+                        
+                        # Si está mapeada a algo con /2 o floor, es n/2
+                        if ('/2' in mapped) or ('floor' in mapped) or \
+                           ('(p+r)/2' in mapped) or ('(left+right)/2' in mapped):
+                            depth_reduction = 'n/2'
                             break
-                    if depth_reduction:
-                        break
-
-            # Heurística adicional: si el primer parámetro es un array y los
-            # argumentos contienen p/q/r o expresiones con q, y q está mapeado
-            # como floor((p+r)/2), entonces asumimos reducción a la mitad.
-            if depth_reduction is None and self.array_param_name and self.local_var_map:
-                for varname, mapped in self.local_var_map.items():
-                    if ('/2' in mapped) or ('floor' in mapped) or ('(p+r)/2' in mapped) or ('(left+right)/2' in mapped):
-                        # buscar q o varname en argumentos
-                        for arg in node.arguments:
-                            arg_str = self._expr_to_string(arg).replace(" ", "")
-                            if varname in arg_str or 'q' in arg_str:
+                    
+                    # Verificar si el argumento CONTIENE una variable mapeada
+                    for varname, mapped in self.local_var_map.items():
+                        if varname in arg_str:
+                            if ('/2' in mapped) or ('floor' in mapped) or \
+                               ('(p+r)/2' in mapped) or ('(left+right)/2' in mapped):
                                 depth_reduction = 'n/2'
                                 break
-                        if depth_reduction:
-                            break
-
-            # Si no se encontró por nombre, elegir un argumento heurístico
+                    
+                    if depth_reduction:
+                        break
+            
+            # Paso 2: Buscar por nombre del parámetro principal
             if depth_reduction is None:
                 for arg in node.arguments:
                     arg_str = self._expr_to_string(arg).replace(" ", "")
-                    # Ignorar el argumento que es el array cuando procedente
+                    
                     if self.array_param_name and arg_str == self.array_param_name:
                         continue
-                    # Ignorar literales o identificadores simples que igualan al array
-                    if arg_str == "" or arg_str is None:
+                    
+                    if self.parameter_name and self.parameter_name in arg_str:
+                        depth_reduction = arg_str
+                        break
+            
+            # Paso 3: Fallback - tomar primer argumento no-array
+            if depth_reduction is None:
+                for arg in node.arguments:
+                    arg_str = self._expr_to_string(arg).replace(" ", "")
+                    if self.array_param_name and arg_str == self.array_param_name:
                         continue
-                    # Tomar el primer argumento razonable como fallback
                     depth_reduction = arg_str
                     break
-
+        
         return RecursiveCall(
             function_name=node.name,
             arguments=node.arguments,
@@ -878,56 +726,57 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         )
     
     def _analyze_recursive_call_statement(self, node: CallStatementNode) -> RecursiveCall:
-        """Analiza llamada recursiva como statement"""
         depth_reduction = None
-
+        
         if node.arguments:
-            for arg in node.arguments:
-                arg_str = self._expr_to_string(arg).replace(" ", "")
-                if self.parameter_name and self.parameter_name in arg_str:
-                    depth_reduction = arg_str
-                    break
-
-            # Intentar resolver usando variables locales mapeadas
-            if depth_reduction is None and self.local_var_map:
-                for varname, mapped in self.local_var_map.items():
-                    for arg in node.arguments:
-                        arg_str = self._expr_to_string(arg).replace(" ", "")
-                        if varname in arg_str:
-                            if ('/2' in mapped) or ('floor' in mapped) or ('(left+right)/2' in mapped):
-                                depth_reduction = 'n/2'
-                            else:
-                                depth_reduction = mapped
+            # ESTRATEGIA MEJORADA:
+            # 1. Buscar argumentos que referencien variables mapeadas (ej. q -> n/2)
+            # 2. Si el argumento es una variable mapeada a floor(...)/2, es n/2
+            # 3. Caso contrario, usar heurística por parámetros
+            
+            # Paso 1: Intentar por variables locales mapeadas PRIMERO
+            if self.local_var_map:
+                for arg in node.arguments:
+                    arg_str = self._expr_to_string(arg).replace(" ", "")
+                    
+                    # Ignorar el array (primer parámetro)
+                    if self.array_param_name and arg_str == self.array_param_name:
+                        continue
+                    
+                    # Verificar si el argumento ES una variable mapeada
+                    if arg_str in self.local_var_map:
+                        mapped = self.local_var_map[arg_str]
+                        
+                        # Si está mapeada a algo con /2 o floor, es n/2
+                        if ('/2' in mapped) or ('floor' in mapped) or \
+                           ('(p+r)/2' in mapped) or ('(left+right)/2' in mapped):
+                            depth_reduction = 'n/2'
                             break
-                    if depth_reduction:
-                        break
-
-            # Igual heurística adicional para llamadas como statements
-            if depth_reduction is None and self.array_param_name and self.local_var_map:
-                for varname, mapped in self.local_var_map.items():
-                    if ('/2' in mapped) or ('floor' in mapped) or ('(p+r)/2' in mapped) or ('(left+right)/2' in mapped):
-                        for arg in node.arguments:
-                            arg_str = self._expr_to_string(arg).replace(" ", "")
-                            if varname in arg_str or 'q' in arg_str:
+                    
+                    # Verificar si el argumento CONTIENE una variable mapeada
+                    for varname, mapped in self.local_var_map.items():
+                        if varname in arg_str:
+                            if ('/2' in mapped) or ('floor' in mapped) or \
+                               ('(p+r)/2' in mapped) or ('(left+right)/2' in mapped):
                                 depth_reduction = 'n/2'
                                 break
-                        if depth_reduction:
-                            break
-
-            # Resolver por variables locales mapeadas en llamadas como statements
-            if depth_reduction is None and self.local_var_map:
-                for varname, mapped in self.local_var_map.items():
-                    for arg in node.arguments:
-                        arg_str = self._expr_to_string(arg).replace(" ", "")
-                        if varname in arg_str:
-                            if ('/2' in mapped) or ('floor' in mapped) or ('(left+right)/2' in mapped):
-                                depth_reduction = 'n/2'
-                            else:
-                                depth_reduction = mapped
-                            break
+                    
                     if depth_reduction:
                         break
-
+            
+            # Paso 2: Buscar por nombre del parámetro principal
+            if depth_reduction is None:
+                for arg in node.arguments:
+                    arg_str = self._expr_to_string(arg).replace(" ", "")
+                    
+                    if self.array_param_name and arg_str == self.array_param_name:
+                        continue
+                    
+                    if self.parameter_name and self.parameter_name in arg_str:
+                        depth_reduction = arg_str
+                        break
+            
+            # Paso 3: Fallback - tomar primer argumento no-array
             if depth_reduction is None:
                 for arg in node.arguments:
                     arg_str = self._expr_to_string(arg).replace(" ", "")
@@ -935,7 +784,7 @@ class RecursionAnalyzerVisitor(ASTVisitor):
                         continue
                     depth_reduction = arg_str
                     break
-
+        
         return RecursiveCall(
             function_name=node.name,
             arguments=node.arguments,
@@ -944,11 +793,9 @@ class RecursionAnalyzerVisitor(ASTVisitor):
         )
     
     def _estimate_cost(self, block: BlockNode) -> str:
-        """Estima costo del caso base"""
         return "O(1)"
     
     def _build_result(self) -> RecursionAnalysisResult:
-        """Construye resultado final con ecuaciones para todos los casos"""
         is_recursive = len(self.recursive_calls) > 0
         
         if not is_recursive:
@@ -957,17 +804,14 @@ class RecursionAnalyzerVisitor(ASTVisitor):
                 is_recursive=False
             )
         
-        # Determinar caso base
         if self.base_cases:
             base_condition, base_cost = self.base_cases[0]
         else:
             base_condition = "unknown"
             base_cost = "O(1)"
         
-        # Crear ecuación con múltiples casos
         recurrence = RecurrenceEquation(
             function_name=self.procedure_name,
-            # Si el primer parámetro es un array, usamos `n` como parámetro genérico
             parameter=("n" if self.array_param_name else (self.parameter_name or "n")),
             base_case_condition=base_condition,
             base_case_cost=base_cost,
@@ -987,16 +831,11 @@ class RecursionAnalyzerVisitor(ASTVisitor):
 
 
 # ============================================================================
-# API PÚBLICA MEJORADA
+# API PÚBLICA
 # ============================================================================
 
 def analyze_recursion(procedure: ProcedureNode) -> RecursionAnalysisResult:
-    """
-    Analiza un procedimiento para detectar recursión.
-    
-    Returns:
-        RecursionAnalysisResult con ecuaciones para peor, mejor y caso promedio
-    """
+    """Analiza un procedimiento para detectar recursión"""
     visitor = RecursionAnalyzerVisitor(procedure.name)
     return visitor.visit_procedure(procedure)
 
@@ -1008,24 +847,11 @@ def to_recurrence(code: str, procedure_name: Optional[str] = None,
     
     Args:
         code: Código pseudocódigo
-        procedure_name: Nombre del procedimiento (usa el primero si es None)
+        procedure_name: Nombre del procedimiento
         case: "worst", "best" o "average"
-        
+    
     Returns:
         String con la ecuación o None si no es recursivo
-        
-    Example:
-        >>> code = '''
-        ... Factorial(n)
-        ... begin
-        ...     if (n ≤ 1) then return 1
-        ...     else return n * call Factorial(n-1)
-        ... end
-        ... '''
-        >>> print(to_recurrence(code, case="worst"))
-        T(n) = T(n-1) + O(1)
-        >>> print(to_recurrence(code, case="best"))
-        T(n) = O(1)
     """
     from parser.parser import parse
     
@@ -1035,7 +861,6 @@ def to_recurrence(code: str, procedure_name: Optional[str] = None,
         if not ast.procedures:
             return None
         
-        # Usar el procedimiento especificado o el primero
         if procedure_name:
             proc = next((p for p in ast.procedures if p.name == procedure_name), None)
             if not proc:
@@ -1048,7 +873,6 @@ def to_recurrence(code: str, procedure_name: Optional[str] = None,
         if not result.is_recursive:
             return None
         
-        # Retornar según el caso solicitado
         if case == "worst":
             return result.to_recurrence_worst()
         elif case == "best":
@@ -1069,13 +893,6 @@ def to_all_recurrences(code: str, procedure_name: Optional[str] = None) -> Optio
     Returns:
         Dict con keys: 'worst', 'best', 'average'
         o None si no es recursivo
-        
-    Example:
-        >>> equations = to_all_recurrences(factorial_code)
-        >>> print(equations['worst'])
-        T(n) = T(n-1) + O(1)
-        >>> print(equations['best'])
-        T(n) = O(1)
     """
     from parser.parser import parse
     
@@ -1113,39 +930,24 @@ def analyze_all_procedures(ast: ProgramNode) -> Dict[str, RecursionAnalysisResul
 # ============================================================================
 
 def demo():
-    """Demuestra el análisis de recursión con múltiples casos"""
+    """Demuestra el análisis corregido"""
     from parser.parser import parse
     
     examples = {
-        "Factorial (con early exit)": """
-Factorial(n)
+        "Merge Sort (FIX CRÍTICO)": """
+MergeSort(A[], p, r)
 begin
-    if (n ≤ 1) then
+    if (p < r) then
     begin
-        return 1
-    end
-    else
-    begin
-        return n * call Factorial(n-1)
+        q ← floor((p + r) / 2)
+        call MergeSort(A, p, q)
+        call MergeSort(A, q+1, r)
+        call Merge(A, p, q, r)
     end
 end
         """,
         
-        "Fibonacci": """
-Fibonacci(n)
-begin
-    if (n ≤ 1) then
-    begin
-        return n
-    end
-    else
-    begin
-        return call Fibonacci(n-1) + call Fibonacci(n-2)
-    end
-end
-        """,
-        
-        "Binary Search (simple)": """
+        "Binary Search (mutuamente excluyente)": """
 BinarySearch(A[], left, right, x)
 begin
     if (left > right) then
@@ -1169,39 +971,23 @@ begin
 end
         """,
         
-        "Binary Search (con else anidado)": """
-BinarySearch(A[], left, right, x)
+        "Fibonacci (sumables en mismo return)": """
+Fibonacci(n)
 begin
-    if (left > right) then
+    if (n ≤ 1) then
     begin
-        return -1
+        return n
     end
     else
     begin
-        mid ← floor((left + right) / 2)
-        
-        if (A[mid] = x) then
-        begin
-            return mid
-        end
-        else
-        begin
-            if (A[mid] < x) then
-            begin
-                return call BinarySearch(A, mid+1, right, x)
-            end
-            else
-            begin
-                return call BinarySearch(A, left, mid-1, x)
-            end
-        end
+        return call Fibonacci(n-1) + call Fibonacci(n-2)
     end
 end
         """
     }
     
     print("="*70)
-    print("ANÁLISIS DE RECURSIÓN - MÚLTIPLES CASOS")
+    print("ANÁLISIS DE RECURSIÓN - FIX MERGE SORT")
     print("="*70)
     
     for name, code in examples.items():
@@ -1221,21 +1007,15 @@ end
                 
                 print(f"\n🟡 Caso Promedio:")
                 print(f"   {equations['average']}")
+                
+                # Verificar corrección para Merge Sort
+                if "MergeSort" in name:
+                    if "2T(n/2)" in equations['worst']:
+                        print(f"\n✅ CORRECTO: Detecta 2T(n/2) + n")
+                    else:
+                        print(f"\n❌ ERROR: No detecta correctamente las 2 llamadas")
             else:
                 print("\n❌ No es recursivo")
-                
-                # DEBUG: Ver qué está pasando
-                from parser.parser import parse as parse_code
-                ast = parse_code(code)
-                proc = ast.procedures[0]
-                visitor = RecursionAnalyzerVisitor(proc.name)
-                result = visitor.visit_procedure(proc)
-                
-                print(f"\n🔍 DEBUG:")
-                print(f"   - Llamadas recursivas encontradas: {len(visitor.recursive_calls)}")
-                if visitor.recursive_calls:
-                    for call in visitor.recursive_calls:
-                        print(f"     • {call.function_name}({call.depth_reduction})")
         
         except Exception as e:
             print(f"\n❌ ERROR: {e}")
