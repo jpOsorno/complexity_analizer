@@ -40,14 +40,16 @@ def get_recurrence(code: str, procedure_name: Optional[str] = None, case: str = 
 if __name__ == '__main__':
     # Demo rápido (misma muestra que antes)
     sample = """
-MergeSort(A[], p, r)
+BinarySearch(A[], left, right, x)
 begin
-    if (p < r) then
+    if (left > right) then
     begin
-        q ← floor((p + r) / 2)
-        call MergeSort(A, p, q)
-        call MergeSort(A, q+1, r)
-        call Merge(A, p, q, r)
+        return -1
+    end
+    else
+    begin
+        mid ← floor((left + right) / 2)
+        return call BinarySearch(A, mid+1, right, x)
     end
 end
 
