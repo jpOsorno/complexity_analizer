@@ -63,6 +63,11 @@ class PseudocodeTransformer(Transformer):
         
         CRÍTICO: Esta función previene errores de Tree/Token sin transformar.
         """
+        # NUEVO: Filtrar comentarios explícitamente
+        from lark import Token
+        if isinstance(item, Token) and item.type == 'COMMENT':
+            return None
+        
         # Ya es un nodo del AST - OK
         if isinstance(item, (
             ProgramNode, ProcedureNode, BlockNode,
@@ -231,17 +236,27 @@ class PseudocodeTransformer(Transformer):
     # ========================================================================
     # BLOQUES Y DECLARACIONES
     # ========================================================================
-    
     def block(self, items):
         """block: "begin" declaration* statement* "end" """
+        from lark import Token
+        
         declarations = []
         statements = []
         
         for item in items:
+            # Ignorar None y comentarios
             if item is None:
                 continue
             
+            # Ignorar tokens COMMENT explícitamente
+            if isinstance(item, Token) and item.type == 'COMMENT':
+                continue
+            
             node = self._ensure_node(item)
+            
+            # Si _ensure_node retorna None (comentario), ignorar
+            if node is None:
+                continue
             
             if isinstance(node, (ArrayDeclNode, ObjectDeclNode)):
                 declarations.append(node)
