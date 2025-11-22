@@ -1,0 +1,13 @@
+Hanoi(n, origen, destino, auxiliar)
+begin
+    if (n = 1) then
+    begin
+        return 1
+    end
+    else
+    begin
+        call Hanoi(n-1, origen, auxiliar, destino)
+        call Hanoi(n-1, auxiliar, destino, origen)
+        return 1
+    end
+end

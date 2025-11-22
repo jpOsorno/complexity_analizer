@@ -1,0 +1,23 @@
+BinarySearch(A[], left, right, x)
+begin
+    if (left > right) then
+    begin
+        return -1
+    end
+    
+    mid ← floor((left + right) / 2)
+    
+    if (A[mid] = x) then
+    begin
+        return mid
+    end
+    
+    if (A[mid] < x) then
+    begin
+        return call BinarySearch(A, mid+1, right, x)
+    end
+    else
+    begin
+        return call BinarySearch(A, left, mid-1, x)
+    end
+end

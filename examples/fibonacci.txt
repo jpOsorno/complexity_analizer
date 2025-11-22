@@ -1,0 +1,11 @@
+Fibonacci(n)
+begin
+    if (n ≤ 1) then
+    begin
+        return n
+    end
+    else
+    begin
+        return call Fibonacci(n-1) + call Fibonacci(n-2)
+    end
+end

@@ -1,0 +1,19 @@
+Karatsuba(x, y, n)
+begin
+    if (n = 1) then
+    begin
+        return x * y
+    end
+    
+    m ← floor(n / 2)
+    a ← x div 10^m
+    b ← x mod 10^m
+    c ← y div 10^m
+    d ← y mod 10^m
+    
+    ac ← call Karatsuba(a, c, m)
+    bd ← call Karatsuba(b, d, m)
+    abcd ← call Karatsuba(a+b, c+d, m)
+    
+    return ac * 10^(2*m) + (abcd - ac - bd) * 10^m + bd
+end

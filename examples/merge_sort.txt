@@ -1,0 +1,10 @@
+MergeSort(A[], p, r)
+begin
+    if (p < r) then
+    begin
+        q ← floor((p + r) / 2)
+        call MergeSort(A, p, q)
+        call MergeSort(A, q+1, r)
+        call Merge(A, p, q, r)
+    end
+end

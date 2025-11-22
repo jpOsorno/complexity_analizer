@@ -49,6 +49,7 @@ class RecurrenceSolution:
     steps: List[str] = field(default_factory=list)
     tree_analysis: Optional[str] = None
     exact_solution: Optional[str] = None
+    tight_bounds: Optional[str] = None  # NUEVO: Cotas fuertes
     
     # Metadata
     complexity_class: str = ""  # "constant", "logarithmic", "linear", etc.
@@ -77,6 +78,9 @@ Tight bound: {'Sí' if self.is_tight else 'No'}
         
         if self.exact_solution:
             result += f"\n\nSolución exacta: {self.exact_solution}"
+        
+        if self.tight_bounds:
+            result += f"\n\nCotas fuertes: {self.tight_bounds}"
         
         return result
     
@@ -118,6 +122,7 @@ class RecurrenceClassifier:
         
         Returns:
             (tipo, parametros) donde tipo es:
+            - "already-solved": T(n) = O(f(n)) (ya está resuelta)
             - "divide-conquer": T(n) = aT(n/b) + f(n)
             - "subtract-conquer": T(n) = T(n-k) + f(n)
             - "subtract-conquered": T(n) = T(n-k1) + T(n-k2) + ... + f(n)
@@ -125,6 +130,11 @@ class RecurrenceClassifier:
             - "unknown": No se pudo clasificar
         """
         equation = equation.replace(" ", "").replace("T(n)=", "")
+        
+        # 0. Verificar si ya está resuelta: T(n) = O(...) o Θ(...) o Ω(...)
+        if not "T(" in equation:
+            # No hay llamadas recursivas, ya está en notación de complejidad
+            return RecurrenceClassifier._parse_already_solved(equation)
         
         # 1. Divide y Vencerás: T(n/b) presente
         if "T(n/" in equation or "T(n/2)" in equation or "T(n/3)" in equation:
@@ -218,6 +228,34 @@ class RecurrenceClassifier:
             f_n = "O(1)"
         
         return ("linear-nonhomogeneous", {"coefficients": coefficients, "f_n": f_n})
+    
+    @staticmethod
+    def _parse_already_solved(equation: str) -> Tuple[str, Dict]:
+        """
+        Parsea ecuaciones que ya están resueltas: O(f(n)), Θ(f(n)), Ω(f(n))
+        
+        Examples:
+            - "O(1)" → already-solved
+            - "O(n)" → already-solved
+            - "Θ(log(n))" → already-solved
+        """
+        # Extraer la complejidad
+        complexity = equation.strip()
+        
+        # Determinar la notación usada
+        if complexity.startswith("O("):
+            notation = "O"
+        elif complexity.startswith("Θ(") or complexity.startswith("Theta("):
+            notation = "Θ"
+        elif complexity.startswith("Ω(") or complexity.startswith("Omega("):
+            notation = "Ω"
+        else:
+            notation = "O"  # Por defecto
+        
+        return ("already-solved", {
+            "complexity": complexity,
+            "notation": notation
+        })
 
 
 # ============================================================================
@@ -277,6 +315,9 @@ class MasterTheorem:
             complexity = MasterTheorem._format_complexity(log_ba_float)
             complexity_class = MasterTheorem._classify_complexity(log_ba_float)
             
+            # Calcular cota fuerte
+            tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
+            
             return RecurrenceSolution(
                 original_equation=equation,
                 method_used="master_theorem_case1",
@@ -286,7 +327,8 @@ class MasterTheorem:
                 complexity_class=complexity_class,
                 is_tight=True,
                 recurrence_type="divide-conquer",
-                steps=steps
+                steps=steps,
+                tight_bounds=tight_bounds
             )
         
         # Caso 2: f(n) = Θ(n^log_b(a))
@@ -302,6 +344,9 @@ class MasterTheorem:
                 complexity = f"{base_complexity}×log(n)"
                 complexity_class = f"polynomial with log factor"
             
+            # Calcular cota fuerte
+            tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
+            
             return RecurrenceSolution(
                 original_equation=equation,
                 method_used="master_theorem_case2",
@@ -311,7 +356,8 @@ class MasterTheorem:
                 complexity_class=complexity_class,
                 is_tight=True,
                 recurrence_type="divide-conquer",
-                steps=steps
+                steps=steps,
+                tight_bounds=tight_bounds
             )
         
         # Caso 3: f(n) = Ω(n^(log_b(a) + ε))
@@ -322,6 +368,9 @@ class MasterTheorem:
             complexity = MasterTheorem._extract_complexity_from_f(f_n)
             complexity_class = MasterTheorem._classify_from_string(complexity)
             
+            # Calcular cota fuerte
+            tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
+            
             return RecurrenceSolution(
                 original_equation=equation,
                 method_used="master_theorem_case3",
@@ -331,7 +380,8 @@ class MasterTheorem:
                 complexity_class=complexity_class,
                 is_tight=True,
                 recurrence_type="divide-conquer",
-                steps=steps
+                steps=steps,
+                tight_bounds=tight_bounds
             )
     
     @staticmethod
@@ -395,6 +445,33 @@ class MasterTheorem:
             return "quadratic"
         else:
             return "polynomial"
+    
+    @staticmethod
+    def _calculate_tight_bounds(complexity: str) -> str:
+        """
+        Calcula las cotas fuertes (tight bounds) para una complejidad.
+        
+        Las cotas fuertes son los factores constantes más ajustados.
+        Por ejemplo: Θ(n) tiene cota fuerte c₁n ≤ T(n) ≤ c₂n
+        """
+        # Simplificar notación
+        clean = complexity.replace("×", "*").replace("^", "**")
+        
+        if complexity == "1":
+            return "c₁ ≤ T(n) ≤ c₂ para constantes c₁, c₂ > 0"
+        elif complexity == "n":
+            return "c₁n ≤ T(n) ≤ c₂n para constantes c₁, c₂ > 0"
+        elif complexity == "n²" or "n^2" in complexity:
+            return "c₁n² ≤ T(n) ≤ c₂n² para constantes c₁, c₂ > 0"
+        elif "log(n)" in complexity and "n" in complexity:
+            return "c₁n·log(n) ≤ T(n) ≤ c₂n·log(n) para constantes c₁, c₂ > 0"
+        elif "log(n)" in complexity:
+            return "c₁log(n) ≤ T(n) ≤ c₂log(n) para constantes c₁, c₂ > 0"
+        elif "^" in complexity or "**" in complexity:
+            # Complejidad polinómica o exponencial
+            return f"c₁f(n) ≤ T(n) ≤ c₂f(n) donde f(n) = {complexity}"
+        else:
+            return f"c₁f(n) ≤ T(n) ≤ c₂f(n) donde f(n) = {complexity}"
 
 
 # ============================================================================
@@ -439,15 +516,18 @@ class IterationMethod:
             complexity = "n"
             complexity_class = "linear"
             steps.append(f"\nSimplificar: T(n) = T(0) + (n/{k})×c = Θ(n)")
+            tight_bounds = f"c₁n ≤ T(n) ≤ c₂n para constantes c₁, c₂ > 0"
         elif f_cost == "n":
             # T(n) = T(0) + (n/k) × n = O(n²)
             complexity = "n²"
             complexity_class = "quadratic"
             steps.append(f"\nSimplificar: T(n) = T(0) + (n/{k})×n = Θ(n²)")
+            tight_bounds = f"c₁n² ≤ T(n) ≤ c₂n² para constantes c₁, c₂ > 0"
         else:
             complexity = "n"
             complexity_class = "linear"
             steps.append(f"\nSimplificar: T(n) = Θ(n)")
+            tight_bounds = f"c₁n ≤ T(n) ≤ c₂n para constantes c₁, c₂ > 0"
         
         return RecurrenceSolution(
             original_equation=equation,
@@ -459,7 +539,8 @@ class IterationMethod:
             is_tight=True,
             recurrence_type="subtract-conquer",
             steps=steps,
-            exact_solution=f"T(n) = T(0) + (n/{k})×{f_cost}"
+            exact_solution=f"T(n) = T(0) + (n/{k})×{f_cost}",
+            tight_bounds=tight_bounds
         )
     
     @staticmethod
@@ -847,6 +928,10 @@ class RecurrenceSolver:
     def _auto_select_method(recurrence_type: str, params: Dict, equation: str) -> RecurrenceSolution:
         """Selección automática del mejor método"""
         
+        # Ecuación ya resuelta → No hacer nada
+        if recurrence_type == "already-solved":
+            return RecurrenceSolver._handle_already_solved(params, equation)
+        
         # Divide y Vencerás → Teorema Maestro
         if recurrence_type == "divide-conquer":
             if MasterTheorem.applies(recurrence_type, params):
@@ -879,6 +964,81 @@ class RecurrenceSolver:
         
         # Fallback: Sustitución
         return SubstitutionMethod.solve(recurrence_type, params, equation)
+    
+    @staticmethod
+    def _handle_already_solved(params: Dict, equation: str) -> RecurrenceSolution:
+        """
+        Maneja ecuaciones que ya están resueltas (no requieren análisis).
+        
+        Example: T(n) = O(1) → Retornar directamente como solución
+        """
+        complexity = params.get("complexity", "O(?)")
+        notation = params.get("notation", "O")
+        
+        # Extraer el contenido de la notación: O(1) → "1"
+        import re
+        match = re.search(r'[OΘΩ]\((.*?)\)', complexity)
+        inner = match.group(1) if match else "?"
+        
+        # Determinar clase de complejidad
+        complexity_class = "constant"
+        if "1" in inner:
+            complexity_class = "constant"
+        elif "log" in inner.lower():
+            complexity_class = "logarithmic"
+        elif "n^2" in inner or "n²" in inner:
+            complexity_class = "quadratic"
+        elif "n" in inner and "log" not in inner.lower():
+            complexity_class = "linear"
+        elif "2^n" in inner or "^n" in inner:
+            complexity_class = "exponential"
+        
+        # Si es Θ, entonces es tight bound (O = Ω)
+        is_tight = (notation == "Θ")
+        
+        steps = [
+            "Ecuación ya resuelta (no requiere análisis)",
+            f"La ecuación está expresada directamente en notación {notation}",
+            f"Complejidad: {complexity}"
+        ]
+        
+        # Construir las tres notaciones
+        if is_tight:
+            big_o = f"O({inner})"
+            big_omega = f"Ω({inner})"
+            big_theta = f"Θ({inner})"
+            tight_bounds = f"Cota ajustada: {inner}"
+        else:
+            # Si solo tenemos O o Ω, usar eso
+            if notation == "O":
+                big_o = complexity
+                big_omega = "Ω(1)"  # Mejor caso por defecto
+                big_theta = f"Θ({inner})" if is_tight else "Θ(?)"
+                tight_bounds = None
+            elif notation == "Ω":
+                big_o = "O(?)"
+                big_omega = complexity
+                big_theta = "Θ(?)"
+                tight_bounds = None
+            else:
+                big_o = f"O({inner})"
+                big_omega = f"Ω({inner})"
+                big_theta = f"Θ({inner})"
+                tight_bounds = f"Cota ajustada: {inner}"
+        
+        return RecurrenceSolution(
+            original_equation=equation,
+            method_used="already_solved",
+            big_o=big_o,
+            big_omega=big_omega,
+            big_theta=big_theta,
+            complexity_class=complexity_class,
+            is_tight=is_tight,
+            recurrence_type="already-solved",
+            steps=steps,
+            exact_solution=complexity,
+            tight_bounds=tight_bounds
+        )
     
     @staticmethod
     def _apply_method(method: str, recurrence_type: str, params: Dict, equation: str) -> RecurrenceSolution:

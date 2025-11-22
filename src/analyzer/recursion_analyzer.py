@@ -160,7 +160,7 @@ class RecurrenceEquation:
         # PASO 5: Construir ecuación final
         # ====================================================================
         
-        self.worst_case_equation = f"T({self.parameter}) = {worst_recursive_part} + {self.non_recursive_cost}"
+        self.worst_case_equation = f"T(n) = {worst_recursive_part} + {self.non_recursive_cost}"
         
         # ====================================================================
         # PASO 6: Mejor caso y promedio
@@ -169,7 +169,7 @@ class RecurrenceEquation:
         has_early_exit = self._has_early_exit_pattern()
         
         if has_early_exit:
-            self.best_case_equation = f"T({self.parameter}) = {self.base_case_cost}"
+            self.best_case_equation = f"T(n) = {self.base_case_cost}"
             self.best_case_explanation = "Mejor caso: early exit al caso base"
         else:
             self.best_case_equation = self.worst_case_equation
@@ -302,7 +302,7 @@ class RecurrenceEquation:
         elif recursion_type == "binary":
             return self.worst_case_equation
         elif self._has_early_exit_pattern():
-            return self.worst_case_equation.replace("T(", "T_avg(")
+            return self.worst_case_equation.replace("T(", "T(")
         else:
             return self.worst_case_equation
     

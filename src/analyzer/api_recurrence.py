@@ -47,6 +47,7 @@ end
     """
 
     print('Ejemplo:')
+    print(sample)
     eqs = get_recurrences(sample)
     if eqs:
         print('  Worst :', eqs.get('worst'))
