@@ -10,6 +10,7 @@ También soporta ejecución como script para pruebas rápidas.
 from typing import Optional, Dict
 
 from recursion_analyzer import to_recurrence, to_all_recurrences
+from recurrence_solver import solve_recurrence
 
 
 def get_recurrences(code: str, procedure_name: Optional[str] = None) -> Optional[Dict[str, str]]:
@@ -55,8 +56,22 @@ end
     print('Ejemplo:')
     eqs = get_recurrences(sample)
     if eqs:
-        print('  Worst :', eqs.get('worst'))
-        print('  Best  :', eqs.get('best'))
-        print('  Avg   :', eqs.get('average'))
+        # Para cada caso mostramos la ecuación y cómo se resolvió
+        for label, title in (('worst', 'Worst'), ('best', 'Best'), ('average', 'Avg')):
+            eq = eqs.get(label)
+            if not eq:
+                print(f'  {title:6}: <no encontrado>')
+                continue
+            print(f'  {title:6}: {eq}')
+
+            try:
+                solution = solve_recurrence(eq)
+                # Imprimir resultado con sangría para facilitar lectura
+                sol_lines = str(solution).splitlines()
+                print('    Solución y pasos:')
+                for line in sol_lines:
+                    print('      ' + line)
+            except Exception as e:
+                print('    No se pudo resolver automáticamente:', e)
     else:
         print('No es recursivo o hubo un error en el análisis.')
