@@ -1,19 +1,16 @@
 """
-Analizador Unificado de Complejidad Computacional
-=================================================
+Analizador Unificado de Complejidad Computacional - VERSIÓN MEJORADA
+====================================================================
 
-Integra análisis iterativo (ciclos) y recursivo en un único sistema.
-Maneja algoritmos híbridos como QuickSort, MergeSort con optimizaciones, etc.
+MEJORA CRÍTICA: Proporciona ecuaciones de recurrencia completas para
+mejor, peor y caso promedio, con sus soluciones detalladas.
 
 Características:
 - Detección automática de recursión
 - Análisis de ciclos anidados
-- Combinación de complejidades iterativas + recursivas
-- Generación de ecuaciones de recurrencia completas
-- Notaciones O(n), Ω(n), Θ(n)
-
-Autor: Sistema de Análisis de Complejidad
-Fecha: 2025
+- Ecuaciones de recurrencia para todos los casos
+- Resolución de ecuaciones con múltiples métodos
+- Notaciones O(n), Ω(n), Θ(n) completas
 """
 
 import sys
@@ -30,16 +27,97 @@ from analyzer.recurrence_solver import solve_recurrence, RecurrenceSolution
 
 
 # ============================================================================
-# ESTRUCTURAS DE DATOS
+# ESTRUCTURAS DE DATOS MEJORADAS
 # ============================================================================
 
 @dataclass
-class UnifiedComplexityResult:
-    """
-    Resultado completo del análisis unificado.
+class RecurrenceAnalysis:
+    """Análisis completo de ecuaciones de recurrencia"""
     
-    Incluye tanto análisis iterativo como recursivo.
-    """
+    # Ecuaciones para cada caso
+    worst_case_equation: str = ""
+    best_case_equation: str = ""
+    average_case_equation: str = ""
+    
+    # Soluciones detalladas
+    worst_case_solution: Optional[RecurrenceSolution] = None
+    best_case_solution: Optional[RecurrenceSolution] = None
+    average_case_solution: Optional[RecurrenceSolution] = None
+    
+    # Explicaciones
+    worst_case_explanation: str = ""
+    best_case_explanation: str = ""
+    average_case_explanation: str = ""
+    
+    def __str__(self):
+        result = "\n" + "="*70 + "\n"
+        result += "ANÁLISIS DE RECURRENCIA COMPLETO\n"
+        result += "="*70 + "\n"
+        
+        # PEOR CASO
+        result += "\n🔴 PEOR CASO:\n"
+        result += f"  Ecuación: {self.worst_case_equation}\n"
+        if self.worst_case_solution:
+            result += f"  Método: {self.worst_case_solution.method_used}\n"
+            result += f"  Solución: {self.worst_case_solution.big_theta}\n"
+            result += f"  Explicación: {self.worst_case_explanation}\n"
+            if self.worst_case_solution.steps:
+                result += f"\n  Pasos de resolución:\n"
+                for i, step in enumerate(self.worst_case_solution.steps[:5], 1):
+                    result += f"    {i}. {step}\n"
+        
+        # MEJOR CASO
+        result += "\n🟢 MEJOR CASO:\n"
+        result += f"  Ecuación: {self.best_case_equation}\n"
+        if self.best_case_solution:
+            result += f"  Método: {self.best_case_solution.method_used}\n"
+            result += f"  Solución: {self.best_case_solution.big_theta}\n"
+            result += f"  Explicación: {self.best_case_explanation}\n"
+            if self.best_case_solution.steps:
+                result += f"\n  Pasos de resolución:\n"
+                for i, step in enumerate(self.best_case_solution.steps[:5], 1):
+                    result += f"    {i}. {step}\n"
+        
+        # CASO PROMEDIO
+        result += "\n🟡 CASO PROMEDIO:\n"
+        result += f"  Ecuación: {self.average_case_equation}\n"
+        if self.average_case_solution:
+            result += f"  Método: {self.average_case_solution.method_used}\n"
+            result += f"  Solución: {self.average_case_solution.big_theta}\n"
+            result += f"  Explicación: {self.average_case_explanation}\n"
+            if self.average_case_solution.steps:
+                result += f"\n  Pasos de resolución:\n"
+                for i, step in enumerate(self.average_case_solution.steps[:5], 1):
+                    result += f"    {i}. {step}\n"
+        
+        result += "\n" + "="*70
+        return result
+    
+    def to_dict(self) -> dict:
+        """Serializa a diccionario"""
+        return {
+            "worst_case": {
+                "equation": self.worst_case_equation,
+                "solution": self.worst_case_solution.to_dict() if self.worst_case_solution else None,
+                "explanation": self.worst_case_explanation
+            },
+            "best_case": {
+                "equation": self.best_case_equation,
+                "solution": self.best_case_solution.to_dict() if self.best_case_solution else None,
+                "explanation": self.best_case_explanation
+            },
+            "average_case": {
+                "equation": self.average_case_equation,
+                "solution": self.average_case_solution.to_dict() if self.average_case_solution else None,
+                "explanation": self.average_case_explanation
+            }
+        }
+
+
+@dataclass
+class UnifiedComplexityResult:
+    """Resultado completo del análisis unificado - MEJORADO"""
+    
     procedure_name: str
     
     # Análisis iterativo (ciclos)
@@ -47,10 +125,9 @@ class UnifiedComplexityResult:
     iterative_best: str = "Ω(1)"
     iterative_average: str = "Θ(1)"
     
-    # Análisis recursivo (si aplica)
+    # Análisis recursivo completo (NUEVO)
     is_recursive: bool = False
-    recurrence_equation: Optional[str] = None
-    recurrence_solution: Optional[RecurrenceSolution] = None
+    recurrence_analysis: Optional[RecurrenceAnalysis] = None
     
     # Análisis combinado (final)
     final_worst: str = "O(1)"
@@ -64,7 +141,6 @@ class UnifiedComplexityResult:
     
     # Desglose detallado
     loop_analysis: Dict[str, str] = field(default_factory=dict)
-    recursion_tree: Optional[str] = None
     
     def __str__(self):
         result = f"""
@@ -80,13 +156,8 @@ COMPLEJIDAD FINAL:
   Caso Promedio (Θ): {self.final_average}
 """
         
-        if self.is_recursive:
-            result += f"""
-ANÁLISIS RECURSIVO:
-  Ecuación de Recurrencia: {self.recurrence_equation}
-"""
-            if self.recurrence_solution:
-                result += f"  Solución: {self.recurrence_solution.big_theta}\n"
+        if self.is_recursive and self.recurrence_analysis:
+            result += "\n" + str(self.recurrence_analysis)
         
         if self.iterative_worst != "O(1)":
             result += f"""
@@ -116,8 +187,7 @@ ANÁLISIS ITERATIVO:
             },
             "recursive": {
                 "is_recursive": self.is_recursive,
-                "equation": self.recurrence_equation,
-                "solution": self.recurrence_solution.to_dict() if self.recurrence_solution else None
+                "recurrence_analysis": self.recurrence_analysis.to_dict() if self.recurrence_analysis else None
             },
             "iterative": {
                 "worst": self.iterative_worst,
@@ -130,40 +200,18 @@ ANÁLISIS ITERATIVO:
 
 
 # ============================================================================
-# ANALIZADOR UNIFICADO
+# ANALIZADOR UNIFICADO MEJORADO
 # ============================================================================
 
 class UnifiedComplexityAnalyzer:
-    """
-    Analizador que combina análisis iterativo y recursivo.
-    
-    Flujo de análisis:
-    1. Detectar si el algoritmo es recursivo
-    2. Analizar componente iterativo (ciclos)
-    3. Analizar componente recursivo (ecuaciones de recurrencia)
-    4. Combinar ambos análisis
-    5. Resolver ecuaciones de recurrencia
-    6. Generar resultado unificado
-    """
+    """Analizador con soporte completo para ecuaciones de recurrencia"""
     
     def __init__(self):
         self.iterative_analyzer = BasicComplexityAnalyzer()
         self.results: Dict[str, UnifiedComplexityResult] = {}
     
-    # ========================================================================
-    # PUNTO DE ENTRADA PRINCIPAL
-    # ========================================================================
-    
     def analyze_program(self, program: ProgramNode) -> Dict[str, UnifiedComplexityResult]:
-        """
-        Analiza un programa completo.
-        
-        Args:
-            program: AST del programa
-            
-        Returns:
-            Dict con resultados por procedimiento
-        """
+        """Analiza un programa completo"""
         for procedure in program.procedures:
             result = self.analyze_procedure(procedure)
             self.results[procedure.name] = result
@@ -171,14 +219,8 @@ class UnifiedComplexityAnalyzer:
         return self.results
     
     def analyze_procedure(self, procedure: ProcedureNode) -> UnifiedComplexityResult:
-        """
-        Analiza un procedimiento individual.
+        """Analiza un procedimiento individual - VERSIÓN MEJORADA"""
         
-        Estrategia:
-        1. Análisis recursivo (si aplica)
-        2. Análisis iterativo (ciclos)
-        3. Combinación inteligente
-        """
         steps = []
         steps.append(f"Analizando procedimiento: {procedure.name}")
         
@@ -190,24 +232,21 @@ class UnifiedComplexityAnalyzer:
         recursion_result = recursion_visitor.visit_procedure(procedure)
         
         is_recursive = recursion_result.is_recursive
-        recurrence_eq = None
-        recurrence_solution = None
+        recurrence_analysis = None
         
         if is_recursive:
             steps.append("✓ Algoritmo recursivo detectado")
             
-            # Obtener ecuación de recurrencia
+            # NUEVO: Obtener ecuaciones para todos los casos
             if recursion_result.recurrence_equation:
-                eq = recursion_result.recurrence_equation
-                recurrence_eq = eq.worst_case_equation
-                steps.append(f"  Ecuación: {recurrence_eq}")
+                recurrence_eq_obj = recursion_result.recurrence_equation
                 
-                # Resolver ecuación con el solver
-                try:
-                    recurrence_solution = solve_recurrence(recurrence_eq)
-                    steps.append(f"  Solución: {recurrence_solution.big_theta}")
-                except Exception as e:
-                    steps.append(f"  ⚠ No se pudo resolver automáticamente: {e}")
+                steps.append(f"  Generando ecuaciones para todos los casos...")
+                
+                recurrence_analysis = self._analyze_all_recurrence_cases(
+                    recurrence_eq_obj,
+                    steps
+                )
         else:
             steps.append("✓ Algoritmo iterativo (no recursivo)")
         
@@ -216,34 +255,31 @@ class UnifiedComplexityAnalyzer:
         # ====================================================================
         
         iterative_result = self.iterative_analyzer.analyze_procedure(procedure)
-        
         steps.append(f"✓ Análisis iterativo: {iterative_result.worst_case}")
         
         # ====================================================================
         # PASO 3: Combinar análisis
         # ====================================================================
         
-        if is_recursive and recurrence_solution:
-            # Caso recursivo puro o híbrido
+        if is_recursive and recurrence_analysis:
+            # Caso recursivo con ecuaciones completas
             algorithm_type = self._classify_algorithm(
-                is_recursive, 
+                is_recursive,
                 iterative_result.worst_case,
-                recurrence_solution.big_o
+                recurrence_analysis.worst_case_solution.big_o if recurrence_analysis.worst_case_solution else "O(?)"
             )
             
-            final_complexity = self._combine_complexities(
+            final_complexity = self._combine_complexities_enhanced(
                 iterative_result,
-                recurrence_solution,
+                recurrence_analysis,
                 algorithm_type
             )
             
-            explanation = self._generate_explanation(
+            explanation = self._generate_explanation_enhanced(
                 algorithm_type,
                 iterative_result,
-                recurrence_eq,
-                recurrence_solution
+                recurrence_analysis
             )
-            
         else:
             # Caso iterativo puro
             algorithm_type = "iterative"
@@ -252,7 +288,6 @@ class UnifiedComplexityAnalyzer:
                 iterative_result.best_case,
                 iterative_result.average_case
             )
-            
             explanation = f"Algoritmo iterativo con complejidad {iterative_result.worst_case}"
         
         # ====================================================================
@@ -265,8 +300,7 @@ class UnifiedComplexityAnalyzer:
             iterative_best=iterative_result.best_case,
             iterative_average=iterative_result.average_case,
             is_recursive=is_recursive,
-            recurrence_equation=recurrence_eq,
-            recurrence_solution=recurrence_solution,
+            recurrence_analysis=recurrence_analysis,
             final_worst=final_complexity[0],
             final_best=final_complexity[1],
             final_average=final_complexity[2],
@@ -278,50 +312,91 @@ class UnifiedComplexityAnalyzer:
         return result
     
     # ========================================================================
-    # MÉTODOS DE ANÁLISIS AUXILIARES
+    # NUEVO: Análisis completo de recurrencia
+    # ========================================================================
+    
+    def _analyze_all_recurrence_cases(
+        self,
+        recurrence_eq: RecurrenceEquation,
+        steps: List[str]
+    ) -> RecurrenceAnalysis:
+        """
+        Analiza y resuelve ecuaciones para todos los casos.
+        
+        NUEVO: Esta función es la clave para proporcionar análisis completo.
+        """
+        analysis = RecurrenceAnalysis()
+        
+        # PEOR CASO
+        analysis.worst_case_equation = recurrence_eq.worst_case_equation
+        analysis.worst_case_explanation = recurrence_eq.worst_case_explanation
+        
+        steps.append(f"  Peor caso: {analysis.worst_case_equation}")
+        
+        try:
+            analysis.worst_case_solution = solve_recurrence(analysis.worst_case_equation)
+            steps.append(f"    → Solución: {analysis.worst_case_solution.big_theta}")
+            steps.append(f"    → Método: {analysis.worst_case_solution.method_used}")
+        except Exception as e:
+            steps.append(f"    ⚠ No se pudo resolver automáticamente: {e}")
+        
+        # MEJOR CASO
+        analysis.best_case_equation = recurrence_eq.best_case_equation
+        analysis.best_case_explanation = recurrence_eq.best_case_explanation
+        
+        steps.append(f"  Mejor caso: {analysis.best_case_equation}")
+        
+        try:
+            analysis.best_case_solution = solve_recurrence(analysis.best_case_equation)
+            steps.append(f"    → Solución: {analysis.best_case_solution.big_theta}")
+            steps.append(f"    → Método: {analysis.best_case_solution.method_used}")
+        except Exception as e:
+            steps.append(f"    ⚠ No se pudo resolver automáticamente: {e}")
+        
+        # CASO PROMEDIO
+        analysis.average_case_equation = recurrence_eq.average_case_equation
+        analysis.average_case_explanation = recurrence_eq.average_case_explanation
+        
+        steps.append(f"  Caso promedio: {analysis.average_case_equation}")
+        
+        try:
+            analysis.average_case_solution = solve_recurrence(analysis.average_case_equation)
+            steps.append(f"    → Solución: {analysis.average_case_solution.big_theta}")
+            steps.append(f"    → Método: {analysis.average_case_solution.method_used}")
+        except Exception as e:
+            steps.append(f"    ⚠ No se pudo resolver automáticamente: {e}")
+        
+        return analysis
+    
+    # ========================================================================
+    # MÉTODOS AUXILIARES MEJORADOS
     # ========================================================================
     
     def _classify_algorithm(
-        self, 
-        is_recursive: bool, 
+        self,
+        is_recursive: bool,
         iterative_complexity: str,
         recursive_complexity: str
     ) -> str:
-        """
-        Clasifica el algoritmo según sus características.
-        
-        Returns:
-            "iterative", "recursive", "hybrid"
-        """
+        """Clasifica el algoritmo"""
         if not is_recursive:
             return "iterative"
         
-        # Extraer orden de complejidad iterativa
         iterative_order = self._extract_order(iterative_complexity)
         
-        # Si la parte iterativa es significativa (no constante)
         if iterative_order not in ["1", "O(1)"]:
             return "hybrid"
         else:
             return "recursive"
     
-    def _combine_complexities(
+    def _combine_complexities_enhanced(
         self,
         iterative: ComplexityResult,
-        recursive: RecurrenceSolution,
+        recurrence: RecurrenceAnalysis,
         algorithm_type: str
     ) -> Tuple[str, str, str]:
-        """
-        Combina complejidades iterativa y recursiva.
+        """Combina complejidades usando soluciones de recurrencia"""
         
-        Estrategias:
-        - Híbrido: Multiplicar o sumar según contexto
-        - Recursivo puro: Usar solo la recursiva
-        - Iterativo puro: Usar solo la iterativa
-        
-        Returns:
-            (worst, best, average)
-        """
         if algorithm_type == "iterative":
             return (
                 iterative.worst_case,
@@ -330,37 +405,27 @@ class UnifiedComplexityAnalyzer:
             )
         
         elif algorithm_type == "recursive":
-            # Usar solo la solución recursiva
-            return (
-                recursive.big_o,
-                recursive.big_omega,
-                recursive.big_theta
-            )
+            # Usar soluciones de recurrencia
+            worst = recurrence.worst_case_solution.big_o if recurrence.worst_case_solution else "O(?)"
+            best = recurrence.best_case_solution.big_omega if recurrence.best_case_solution else "Ω(?)"
+            average = recurrence.average_case_solution.big_theta if recurrence.average_case_solution else "Θ(?)"
+            
+            return (worst, best, average)
         
         else:  # hybrid
             # Combinar: max(iterativo, recursivo)
-            # Ej: QuickSort con partition O(n) + recursión T(n) = 2T(n/2)
-            # Resultado: O(n log n)
+            worst_rec = recurrence.worst_case_solution.big_o if recurrence.worst_case_solution else "O(?)"
+            best_rec = recurrence.best_case_solution.big_omega if recurrence.best_case_solution else "Ω(?)"
+            avg_rec = recurrence.average_case_solution.big_theta if recurrence.average_case_solution else "Θ(?)"
             
-            worst = self._max_complexity(
-                iterative.worst_case,
-                recursive.big_o
-            )
-            
-            best = self._max_complexity(
-                iterative.best_case,
-                recursive.big_omega
-            )
-            
-            average = self._max_complexity(
-                iterative.average_case,
-                recursive.big_theta
-            )
+            worst = self._max_complexity(iterative.worst_case, worst_rec)
+            best = self._max_complexity(iterative.best_case, best_rec)
+            average = self._max_complexity(iterative.average_case, avg_rec)
             
             return (worst, best, average)
     
     def _max_complexity(self, comp1: str, comp2: str) -> str:
-        """Retorna la complejidad mayor entre dos"""
+        """Retorna la complejidad mayor"""
         order = {
             "O(1)": 0, "Ω(1)": 0, "Θ(1)": 0,
             "O(log(n))": 1, "Ω(log(n))": 1, "Θ(log(n))": 1,
@@ -371,46 +436,42 @@ class UnifiedComplexityAnalyzer:
             "O(2ⁿ)": 6, "Ω(2ⁿ)": 6, "Θ(2ⁿ)": 6,
         }
         
-        # Normalizar notación
-        comp1_norm = comp1.replace("O(", "O(").replace("Ω(", "Ω(").replace("Θ(", "Θ(")
-        comp2_norm = comp2.replace("O(", "O(").replace("Ω(", "Ω(").replace("Θ(", "Θ(")
-        
-        val1 = order.get(comp1_norm, 2)
-        val2 = order.get(comp2_norm, 2)
+        val1 = order.get(comp1, 2)
+        val2 = order.get(comp2, 2)
         
         return comp1 if val1 >= val2 else comp2
     
     def _extract_order(self, complexity: str) -> str:
-        """Extrae el orden de una notación de complejidad"""
+        """Extrae el orden"""
         for prefix in ["O(", "Ω(", "Θ("]:
             if complexity.startswith(prefix):
                 return complexity[len(prefix):-1]
         return complexity
     
-    def _generate_explanation(
+    def _generate_explanation_enhanced(
         self,
         algorithm_type: str,
         iterative: ComplexityResult,
-        recurrence_eq: Optional[str],
-        recurrence_sol: Optional[RecurrenceSolution]
+        recurrence: RecurrenceAnalysis
     ) -> str:
-        """Genera explicación detallada del análisis"""
+        """Genera explicación detallada"""
         
         if algorithm_type == "iterative":
             return f"Algoritmo puramente iterativo. {iterative.explanation}"
         
         elif algorithm_type == "recursive":
-            explanation = f"Algoritmo recursivo.\n"
-            explanation += f"Ecuación de recurrencia: {recurrence_eq}\n"
+            explanation = f"Algoritmo recursivo.\n\n"
+            explanation += f"PEOR CASO:\n"
+            explanation += f"  Ecuación: {recurrence.worst_case_equation}\n"
+            if recurrence.worst_case_solution:
+                explanation += f"  Solución: {recurrence.worst_case_solution.big_theta}\n"
+                explanation += f"  {recurrence.worst_case_explanation}\n"
             
-            if recurrence_sol:
-                explanation += f"Solución: {recurrence_sol.big_theta}\n"
-                explanation += f"Método usado: {recurrence_sol.method_used}\n"
-                
-                if recurrence_sol.steps:
-                    explanation += "\nPasos de resolución:\n"
-                    for step in recurrence_sol.steps[:3]:  # Primeros 3 pasos
-                        explanation += f"  • {step}\n"
+            explanation += f"\nMEJOR CASO:\n"
+            explanation += f"  Ecuación: {recurrence.best_case_equation}\n"
+            if recurrence.best_case_solution:
+                explanation += f"  Solución: {recurrence.best_case_solution.big_theta}\n"
+                explanation += f"  {recurrence.best_case_explanation}\n"
             
             return explanation
         
@@ -418,12 +479,10 @@ class UnifiedComplexityAnalyzer:
             explanation = f"Algoritmo híbrido (iterativo + recursivo).\n\n"
             explanation += f"Componente iterativo: {iterative.worst_case}\n"
             explanation += f"  {iterative.explanation}\n\n"
-            explanation += f"Componente recursivo: {recurrence_eq}\n"
             
-            if recurrence_sol:
-                explanation += f"  Solución: {recurrence_sol.big_theta}\n"
-            
-            explanation += f"\nLa complejidad final es dominada por el componente de mayor orden."
+            if recurrence.worst_case_solution:
+                explanation += f"Componente recursivo: {recurrence.worst_case_equation}\n"
+                explanation += f"  Solución: {recurrence.worst_case_solution.big_theta}\n"
             
             return explanation
 
@@ -436,64 +495,23 @@ def analyze_complexity_unified(ast: ProgramNode) -> Dict[str, UnifiedComplexityR
     """
     API principal: Analiza complejidad de un programa completo.
     
-    Args:
-        ast: AST del programa parseado
-        
-    Returns:
-        Dict con resultados por procedimiento
-        
-    Example:
-        >>> from parser.parser import parse
-        >>> ast = parse(code)
-        >>> results = analyze_complexity_unified(ast)
-        >>> print(results['QuickSort'])
+    MEJORA: Ahora incluye ecuaciones de recurrencia completas para todos los casos.
     """
     analyzer = UnifiedComplexityAnalyzer()
     return analyzer.analyze_program(ast)
 
 
 # ============================================================================
-# DEMO Y TESTS
+# DEMO
 # ============================================================================
 
 def demo():
-    """Demuestra el analizador unificado con varios ejemplos"""
+    """Demuestra el analizador mejorado"""
     
     from parser.parser import parse
     
     examples = {
-        "Bubble Sort (Iterativo Puro)": """
-BubbleSort(A[], n)
-begin
-    for i ← 1 to n-1 do
-    begin
-        for j ← 1 to n-i do
-        begin
-            if (A[j] > A[j+1]) then
-            begin
-                temp ← A[j]
-                A[j] ← A[j+1]
-                A[j+1] ← temp
-            end
-        end
-    end
-end
-        """,
-        
-        "Merge Sort (Recursivo Puro)": """
-MergeSort(A[], p, r)
-begin
-    if (p < r) then
-    begin
-        q ← floor((p + r) / 2)
-        call MergeSort(A, p, q)
-        call MergeSort(A, q+1, r)
-        call Merge(A, p, q, r)
-    end
-end
-        """,
-        
-        "QuickSort (Híbrido)": """
+        "QuickSort (Híbrido - Mejor Demo)": """
 QuickSort(A[], p, r)
 begin
     if (p < r) then
@@ -520,41 +538,27 @@ begin
         end
     end
     
-    A[r] ← A[i+1]
-    A[i+1] ← pivot
     return i+1
 end
         """,
         
-        "Binary Search (Recursivo)": """
-BinarySearch(A[], left, right, x)
+        "Fibonacci (Recursivo Binario)": """
+Fibonacci(n)
 begin
-    if (left > right) then
+    if (n ≤ 1) then
     begin
-        return -1
-    end
-    
-    mid ← floor((left + right) / 2)
-    
-    if (A[mid] = x) then
-    begin
-        return mid
-    end
-    
-    if (A[mid] < x) then
-    begin
-        return call BinarySearch(A, mid+1, right, x)
+        return n
     end
     else
     begin
-        return call BinarySearch(A, left, mid-1, x)
+        return call Fibonacci(n-1) + call Fibonacci(n-2)
     end
 end
         """
     }
     
     print("="*70)
-    print("DEMOSTRACIÓN: ANALIZADOR UNIFICADO")
+    print("DEMOSTRACIÓN: ANALIZADOR UNIFICADO MEJORADO")
     print("="*70)
     
     for name, code in examples.items():
@@ -563,13 +567,9 @@ end
         print(f"{'='*70}")
         
         try:
-            # Parsear código
             ast = parse(code)
-            
-            # Analizar con sistema unificado
             results = analyze_complexity_unified(ast)
             
-            # Mostrar resultados
             for proc_name, result in results.items():
                 print(result)
         
