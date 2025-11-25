@@ -1,4 +1,4 @@
-from unified_analyzer_llm import analyze_with_llm
+from src.llm.unified_analyzer_llm import analyze_with_llm
 
 code = """
 BubbleSort(A[], n)

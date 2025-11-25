@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from llm_config import LLMConfig, ComplexityPrompts
-from llm_client import GroqClient, LLMResponse
+from .llm_config import LLMConfig, ComplexityPrompts
+from .llm_client import GroqClient, LLMResponse
 
 
 @dataclass
