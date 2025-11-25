@@ -545,9 +545,41 @@ class IterationMethod:
     
     @staticmethod
     def _extract_cost(f_n: str) -> str:
-        """Extrae el costo de f(n)"""
-        if "n" in f_n:
+        """
+        Extrae el costo de f(n)
+        
+        MEJORA CRÍTICA: Parsear correctamente diferentes notaciones
+        
+        Casos:
+        - "O(n)" → "n"
+        - "O(1)" → "c"
+        - "n" → "n"
+        - "c" → "c"
+        - "1" → "c"
+        """
+        # Normalizar
+        f_n_clean = f_n.strip().replace(" ", "")
+        
+        # Caso 1: Notación Big-O explícita
+        if "O(n)" in f_n_clean or "Θ(n)" in f_n_clean or "Ω(n)" in f_n_clean:
             return "n"
+        elif "O(1)" in f_n_clean or "Θ(1)" in f_n_clean or "Ω(1)" in f_n_clean:
+            return "c"
+        elif "O(n^2)" in f_n_clean or "O(n²)" in f_n_clean:
+            return "n²"
+        
+        # Caso 2: Notación directa
+        elif f_n_clean == "n":
+            return "n"
+        elif f_n_clean in ["c", "1", "O(1)"]:
+            return "c"
+        
+        # Caso 3: Detectar 'n' en la expresión
+        elif "n" in f_n_clean:
+            # Si contiene "n" pero también operaciones, asumir O(n)
+            return "n"
+        
+        # Default: constante
         else:
             return "c"
 

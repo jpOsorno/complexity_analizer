@@ -40,17 +40,33 @@ def get_recurrence(code: str, procedure_name: Optional[str] = None, case: str = 
 if __name__ == '__main__':
     # Demo rápido (misma muestra que antes)
     sample = """
-BinarySearch(A[], left, right, x)
+QuickSort(A[], p, r)
 begin
-    if (left > right) then
+    if (p < r) then
     begin
-        return -1
+        q ← call Partition(A, p, r)
+        call QuickSort(A, p, q-1)
+        call QuickSort(A, q+1, r)
     end
-    else
+end
+
+Partition(A[], p, r)
+begin
+    pivot ← A[r]
+    i ← p - 1
+    
+    for j ← p to r-1 do
     begin
-        mid ← floor((left + right) / 2)
-        return call BinarySearch(A, mid+1, right, x)
+        if (A[j] ≤ pivot) then
+        begin
+            i ← i + 1
+            temp ← A[i]
+            A[i] ← A[j]
+            A[j] ← temp
+        end
     end
+    
+    return i+1
 end
 
     """

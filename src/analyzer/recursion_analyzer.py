@@ -191,36 +191,38 @@ class RecurrenceEquation:
         Genera ecuaciones específicas para QuickSort.
         
         QuickSort tiene comportamiento diferente según la partición:
-        - Peor caso: partición desbalanceada → T(n) = T(n-1) + T(0) + n
-        - Mejor caso: partición equilibrada → T(n) = 2T(n/2) + n
-        - Caso promedio: mix → T(n) = 2T(n/2) + n (aprox)
+        - Peor caso: partición desbalanceada → T(n) = T(n-1) + O(n)
+        - Mejor caso: partición equilibrada → T(n) = 2T(n/2) + O(n)
+        - Caso promedio: mix → T(n) = 2T(n/2) + O(n)
         """
         self.recursion_type = "quicksort"
         
         # PEOR CASO: Partición completamente desbalanceada
-        self.worst_case_equation = "T(n) = T(n-1) + T(0) + n"
+        # T(0) se omite porque es O(1) y se absorbe en el costo de partición
+        self.worst_case_equation = "T(n) = T(n-1) + O(n)"
         self.worst_case_explanation = (
             "Peor caso de QuickSort: partición desbalanceada (pivot mal elegido). "
-            "Un lado tiene n-1 elementos, el otro 0. "
+            "Un lado tiene n-1 elementos, el otro 0 (que es O(1)). "
             "Costo de Partition: O(n). "
-            "Resultado: T(n) = T(n-1) + O(1) + n ≈ O(n²)"
+            "Ecuación: T(n) = T(n-1) + O(n). "
+            "Resultado: O(n²)"
         )
         
         # MEJOR CASO: Partición perfectamente equilibrada
-        self.best_case_equation = "T(n) = 2T(n/2) + n"
+        self.best_case_equation = "T(n) = 2T(n/2) + O(n)"
         self.best_case_explanation = (
             "Mejor caso de QuickSort: partición equilibrada (pivot óptimo). "
             "Ambos lados tienen aproximadamente n/2 elementos. "
             "Costo de Partition: O(n). "
-            "Resultado: T(n) = 2T(n/2) + n ≈ O(n log n)"
+            "Resultado: T(n) = 2T(n/2) + O(n) ≈ O(n log n)"
         )
         
         # CASO PROMEDIO: Partición razonablemente buena
-        self.average_case_equation = "T(n) = 2T(n/2) + n"
+        self.average_case_equation = "T(n) = 2T(n/2) + O(n)"
         self.average_case_explanation = (
             "Caso promedio de QuickSort: partición razonablemente equilibrada. "
             "Análisis probabilístico muestra que en promedio la partición es buena. "
-            "Se aproxima al mejor caso: T(n) ≈ 2T(n/2) + n ≈ O(n log n)"
+            "Se aproxima al mejor caso: T(n) ≈ 2T(n/2) + O(n) ≈ O(n log n)"
         )
     
     def _extract_terms(self, calls: List[RecursiveCall]) -> List[str]:
