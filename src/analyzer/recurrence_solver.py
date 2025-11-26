@@ -140,6 +140,10 @@ class RecurrenceClassifier:
         if "T(n/" in equation or "T(n/2)" in equation or "T(n/3)" in equation:
             return RecurrenceClassifier._parse_divide_conquer(equation)
         
+        coeff_pattern = re.findall(r'(\d+)\*?T\(n-(\d+)\)', equation)
+        if coeff_pattern:
+            return RecurrenceClassifier._parse_with_coefficient(equation, coeff_pattern)
+        
         # 2. Resta y Serás Vencido: Múltiples T(n-k)
         subtract_terms = re.findall(r'T\(n-(\d+)\)', equation)
         if len(subtract_terms) >= 2:
@@ -154,6 +158,54 @@ class RecurrenceClassifier:
             return RecurrenceClassifier._parse_linear_nonhomogeneous(equation)
         
         return ("unknown", {"equation": equation})
+    @staticmethod
+    def _parse_with_coefficient(equation: str, coeff_pattern: List[Tuple[str, str]]) -> Tuple[str, Dict]:
+        """
+        NUEVO: Parsea T(n) = aT(n-k) + f(n) con coeficiente a > 1
+        
+        Casos:
+        - T(n) = 2T(n-1) + c  → Exponencial O(2^n) - Torres de Hanoi
+        - T(n) = 3T(n-2) + n  → Exponencial O(3^(n/2))
+        
+        Args:
+            coeff_pattern: Lista de (coeficiente, offset)
+                           Ej: [('2', '1')] para 2T(n-1)
+        """
+        # Caso simple: Un solo término con coeficiente
+        if len(coeff_pattern) == 1:
+            a = int(coeff_pattern[0][0])  # Coeficiente
+            k = int(coeff_pattern[0][1])  # Offset (n-k)
+            
+            # Extraer f(n)
+            if "O(1)" in equation or "+c" in equation or "+1" in equation:
+                f_n = "O(1)"
+            elif "O(n)" in equation or "+n" in equation:
+                f_n = "O(n)"
+            else:
+                f_n = "O(1)"
+            
+            # CLAVE: Si a > 1, es exponencial (tipo subtract-conquered)
+            if a > 1:
+                return ("exponential-subtract", {
+                    "coefficient": a,
+                    "offset": k,
+                    "f_n": f_n
+                })
+            else:
+                # a = 1: Es lineal simple
+                return ("subtract-conquer", {"k": k, "f_n": f_n})
+        
+        # Múltiples términos con coeficientes: Lineal no homogénea
+        coefficients = {}
+        for coef, offset in coeff_pattern:
+            coefficients[int(offset)] = int(coef)
+        
+        f_n = "O(1)" if "O(1)" in equation else "O(1)"
+        
+        return ("linear-nonhomogeneous", {
+            "coefficients": coefficients,
+            "f_n": f_n
+        })
     
     @staticmethod
     def _parse_divide_conquer(equation: str) -> Tuple[str, Dict]:
@@ -894,7 +946,138 @@ class SubstitutionMethod:
             steps=["Requiere hipótesis específica para este tipo de recurrencia"]
         )
 
-
+class ExponentialSubtractMethod:
+    """
+    NUEVO: Resuelve T(n) = aT(n-k) + f(n) con a > 1 (exponencial)
+    
+    Ejemplos:
+    - T(n) = 2T(n-1) + O(1)  → O(2^n) - Torres de Hanoi
+    - T(n) = 3T(n-1) + O(n)  → O(3^n)
+    - T(n) = 2T(n-2) + O(1)  → O(2^(n/2))
+    """
+    
+    @staticmethod
+    def applies(recurrence_type: str, params: Dict) -> bool:
+        """Verifica si el método aplica"""
+        return recurrence_type == "exponential-subtract"
+    
+    @staticmethod
+    def solve(a: int, k: int, f_n: str, equation: str) -> RecurrenceSolution:
+        """
+        Resuelve T(n) = aT(n-k) + f(n) por expansión exponencial.
+        
+        Args:
+            a: Coeficiente (número de llamadas)
+            k: Reducción del problema (n-k)
+            f_n: Costo no recursivo
+            equation: Ecuación original
+        """
+        steps = []
+        steps.append(f"Ecuación identificada: T(n) = {a}T(n-{k}) + {f_n}")
+        steps.append(f"Tipo: Recurrencia exponencial con resta")
+        steps.append(f"Parámetros: a={a}, k={k}, f(n)={f_n}")
+        
+        # Determinar el costo de f(n)
+        f_cost = ExponentialSubtractMethod._extract_cost(f_n)
+        
+        # Expansión exponencial
+        steps.append("\nExpansión:")
+        steps.append(f"  T(n) = {a}T(n-{k}) + {f_cost}")
+        steps.append(f"       = {a}[{a}T(n-{2*k}) + {f_cost}] + {f_cost}")
+        steps.append(f"       = {a}²T(n-{2*k}) + {a}{f_cost} + {f_cost}")
+        steps.append(f"       = {a}²T(n-{2*k}) + {f_cost}({a} + 1)")
+        steps.append(f"       = {a}³T(n-{3*k}) + {f_cost}({a}² + {a} + 1)")
+        steps.append(f"       = ...")
+        steps.append(f"       = {a}^i × T(n-{k}×i) + {f_cost} × Σ({a}^j) para j=0 to i-1")
+        
+        # Calcular profundidad de recursión
+        steps.append(f"\nProfundidad: i = n/{k} iteraciones hasta T(0)")
+        
+        # Calcular complejidad según f(n)
+        if f_cost in ["c", "1"]:
+            # T(n) = a^(n/k) × T(0) + c × (a^(n/k) - 1) / (a - 1)
+            #      ≈ a^(n/k)  (el término exponencial domina)
+            
+            if k == 1:
+                complexity = f"{a}^n"
+                steps.append(f"\nSimplificar:")
+                steps.append(f"  T(n) = {a}^n × T(0) + c × ({a}^n - 1) / ({a} - 1)")
+                steps.append(f"       ≈ {a}^n  (el término exponencial domina)")
+                steps.append(f"  Resultado: Θ({a}^n)")
+            else:
+                complexity = f"{a}^(n/{k})"
+                steps.append(f"\nSimplificar:")
+                steps.append(f"  T(n) = {a}^(n/{k}) × T(0) + c × ({a}^(n/{k}) - 1) / ({a} - 1)")
+                steps.append(f"       ≈ {a}^(n/{k})")
+                steps.append(f"  Resultado: Θ({a}^(n/{k}))")
+            
+            complexity_class = "exponential"
+            
+        elif f_cost == "n":
+            # Con f(n) = n, el análisis es más complejo
+            # Pero el término exponencial sigue dominando
+            if k == 1:
+                complexity = f"{a}^n"
+                steps.append(f"\nCon f(n) = n, el costo no recursivo crece linealmente")
+                steps.append(f"Pero el término exponencial {a}^n domina")
+                steps.append(f"Resultado: Θ({a}^n)")
+            else:
+                complexity = f"{a}^(n/{k})"
+                steps.append(f"\nResultado: Θ({a}^(n/{k}))")
+            
+            complexity_class = "exponential"
+        
+        else:
+            # Caso genérico
+            complexity = f"{a}^n"
+            complexity_class = "exponential"
+            steps.append(f"\nResultado: Θ({a}^n)")
+        
+        # Calcular tight bounds
+        tight_bounds = ExponentialSubtractMethod._calculate_tight_bounds(complexity)
+        
+        return RecurrenceSolution(
+            original_equation=equation,
+            method_used="exponential_expansion",
+            big_o=f"O({complexity})",
+            big_omega=f"Ω({complexity})",
+            big_theta=f"Θ({complexity})",
+            complexity_class=complexity_class,
+            is_tight=True,
+            recurrence_type="exponential-subtract",
+            steps=steps,
+            exact_solution=f"T(n) ≈ {complexity}",
+            tight_bounds=tight_bounds
+        )
+    
+    @staticmethod
+    def _extract_cost(f_n: str) -> str:
+        """Extrae el costo de f(n)"""
+        f_n_clean = f_n.strip().replace(" ", "")
+        
+        if "O(n)" in f_n_clean or "Θ(n)" in f_n_clean or "Ω(n)" in f_n_clean:
+            return "n"
+        elif "O(1)" in f_n_clean or "Θ(1)" in f_n_clean or "Ω(1)" in f_n_clean:
+            return "c"
+        elif f_n_clean == "n":
+            return "n"
+        elif f_n_clean in ["c", "1", "O(1)"]:
+            return "c"
+        elif "n" in f_n_clean:
+            return "n"
+        else:
+            return "c"
+    
+    @staticmethod
+    def _calculate_tight_bounds(complexity: str) -> str:
+        """Calcula cotas fuertes para complejidades exponenciales"""
+        if "^n" in complexity:
+            base = complexity.split("^")[0]
+            return f"c₁{base}^n ≤ T(n) ≤ c₂{base}^n para constantes c₁, c₂ > 0 y n ≥ n₀"
+        elif "^(n/" in complexity:
+            return f"c₁f(n) ≤ T(n) ≤ c₂f(n) donde f(n) = {complexity}"
+        else:
+            return f"Cotas exponenciales para {complexity}"
 # ============================================================================
 # RESOLUTOR PRINCIPAL
 # ============================================================================
@@ -903,31 +1086,14 @@ class RecurrenceSolver:
     """
     Resolutor principal que integra todas las técnicas.
     
-    Flujo:
-    1. Clasificar la ecuación
-    2. Seleccionar el método apropiado
-    3. Aplicar el método y retornar solución
+    MEJORA: Ahora incluye ExponentialSubtractMethod para Torres de Hanoi
     """
     
     @staticmethod
     def solve(equation: str, preferred_method: Optional[str] = None) -> RecurrenceSolution:
         """
         Resuelve una ecuación de recurrencia.
-        
-        Args:
-            equation: Ecuación en formato string
-            preferred_method: Método preferido (opcional):
-                - "master": Teorema Maestro
-                - "iteration": Iteración
-                - "tree": Árbol de Recursión
-                - "substitution": Sustitución
-                - "characteristic": Ecuación Característica
-                - None: Selección automática
-        
-        Returns:
-            RecurrenceSolution con el análisis completo
         """
-        # Limpiar ecuación
         equation = equation.strip()
         
         # Paso 1: Clasificar
@@ -958,37 +1124,46 @@ class RecurrenceSolver:
     
     @staticmethod
     def _auto_select_method(recurrence_type: str, params: Dict, equation: str) -> RecurrenceSolution:
-        """Selección automática del mejor método"""
+        """Selección automática del mejor método - ACTUALIZADO"""
         
-        # Ecuación ya resuelta → No hacer nada
+        # Ecuación ya resuelta
         if recurrence_type == "already-solved":
             return RecurrenceSolver._handle_already_solved(params, equation)
         
-        # Divide y Vencerás → Teorema Maestro
+        # NUEVO: Exponencial con resta (Torres de Hanoi)
+        if recurrence_type == "exponential-subtract":
+            if ExponentialSubtractMethod.applies(recurrence_type, params):
+                return ExponentialSubtractMethod.solve(
+                    params["coefficient"],
+                    params["offset"],
+                    params["f_n"],
+                    equation
+                )
+        
+        # Divide y Vencerás
         if recurrence_type == "divide-conquer":
             if MasterTheorem.applies(recurrence_type, params):
                 return MasterTheorem.solve(
                     params["a"], params["b"], params["f_n"], equation
                 )
         
-        # Resta y Vencerás → Iteración
+        # Resta y Vencerás (lineal)
         elif recurrence_type == "subtract-conquer":
             return IterationMethod.solve(
                 params["k"], params["f_n"], equation
             )
         
-        # Resta y Serás Vencido (Fibonacci) → Ecuación Característica
+        # Resta y Serás Vencido (Fibonacci)
         elif recurrence_type == "subtract-conquered":
             k_values = params.get("k_values", [])
-            if set(k_values) == {1, 2}:  # Fibonacci clásico
+            if set(k_values) == {1, 2}:
                 return CharacteristicEquation.solve_fibonacci(
                     k_values, params["f_n"], equation
                 )
             else:
-                # Usar árbol de recursión
                 return RecursionTree.analyze(recurrence_type, params, equation)
         
-        # Lineal no homogénea → Ecuación Característica
+        # Lineal no homogénea
         elif recurrence_type == "linear-nonhomogeneous":
             return CharacteristicEquation.solve_general(
                 params["coefficients"], params["f_n"], equation
@@ -999,20 +1174,14 @@ class RecurrenceSolver:
     
     @staticmethod
     def _handle_already_solved(params: Dict, equation: str) -> RecurrenceSolution:
-        """
-        Maneja ecuaciones que ya están resueltas (no requieren análisis).
-        
-        Example: T(n) = O(1) → Retornar directamente como solución
-        """
+        """Maneja ecuaciones ya resueltas (sin cambios)"""
         complexity = params.get("complexity", "O(?)")
         notation = params.get("notation", "O")
         
-        # Extraer el contenido de la notación: O(1) → "1"
         import re
         match = re.search(r'[OΘΩ]\((.*?)\)', complexity)
         inner = match.group(1) if match else "?"
         
-        # Determinar clase de complejidad
         complexity_class = "constant"
         if "1" in inner:
             complexity_class = "constant"
@@ -1025,7 +1194,6 @@ class RecurrenceSolver:
         elif "2^n" in inner or "^n" in inner:
             complexity_class = "exponential"
         
-        # Si es Θ, entonces es tight bound (O = Ω)
         is_tight = (notation == "Θ")
         
         steps = [
@@ -1034,17 +1202,15 @@ class RecurrenceSolver:
             f"Complejidad: {complexity}"
         ]
         
-        # Construir las tres notaciones
         if is_tight:
             big_o = f"O({inner})"
             big_omega = f"Ω({inner})"
             big_theta = f"Θ({inner})"
             tight_bounds = f"Cota ajustada: {inner}"
         else:
-            # Si solo tenemos O o Ω, usar eso
             if notation == "O":
                 big_o = complexity
-                big_omega = "Ω(1)"  # Mejor caso por defecto
+                big_omega = "Ω(1)"
                 big_theta = f"Θ({inner})" if is_tight else "Θ(?)"
                 tight_bounds = None
             elif notation == "Ω":
@@ -1074,7 +1240,7 @@ class RecurrenceSolver:
     
     @staticmethod
     def _apply_method(method: str, recurrence_type: str, params: Dict, equation: str) -> RecurrenceSolution:
-        """Aplica un método específico"""
+        """Aplica un método específico (sin cambios significativos)"""
         
         if method == "master":
             if MasterTheorem.applies(recurrence_type, params):

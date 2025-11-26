@@ -454,35 +454,118 @@ class UnifiedComplexityAnalyzer:
         iterative: ComplexityResult,
         recurrence: RecurrenceAnalysis
     ) -> str:
-        """Genera explicación detallada"""
+        """
+        Genera explicación detallada - CORREGIDO
+        
+        NUEVO: Incluye TODOS los casos (worst, best, average) con pasos de resolución
+        """
         
         if algorithm_type == "iterative":
             return f"Algoritmo puramente iterativo. {iterative.explanation}"
         
         elif algorithm_type == "recursive":
-            explanation = f"Algoritmo recursivo.\n\n"
-            explanation += f"PEOR CASO:\n"
-            explanation += f"  Ecuación: {recurrence.worst_case_equation}\n"
-            if recurrence.worst_case_solution:
-                explanation += f"  Solución: {recurrence.worst_case_solution.big_theta}\n"
-                explanation += f"  {recurrence.worst_case_explanation}\n"
+            explanation = "**Algoritmo recursivo**\n\n"
             
-            explanation += f"\nMEJOR CASO:\n"
-            explanation += f"  Ecuación: {recurrence.best_case_equation}\n"
+            # ============================================================
+            # PEOR CASO
+            # ============================================================
+            explanation += "### 🔴 PEOR CASO\n\n"
+            explanation += f"**Ecuación de recurrencia:**  \n`{recurrence.worst_case_equation}`\n\n"
+            
+            if recurrence.worst_case_solution:
+                explanation += f"**Solución:**  \n{recurrence.worst_case_solution.big_theta}\n\n"
+                explanation += f"**Método usado:**  \n{recurrence.worst_case_solution.method_used}\n\n"
+                explanation += f"**Explicación:**  \n{recurrence.worst_case_explanation}\n\n"
+                
+                # NUEVO: Agregar pasos de resolución
+                if recurrence.worst_case_solution.steps:
+                    explanation += "**Pasos de resolución:**\n"
+                    for i, step in enumerate(recurrence.worst_case_solution.steps, 1):
+                        explanation += f"{i}. {step}\n"
+                    explanation += "\n"
+            
+            # ============================================================
+            # MEJOR CASO
+            # ============================================================
+            explanation += "### 🟢 MEJOR CASO\n\n"
+            explanation += f"**Ecuación de recurrencia:**  \n`{recurrence.best_case_equation}`\n\n"
+            
             if recurrence.best_case_solution:
-                explanation += f"  Solución: {recurrence.best_case_solution.big_theta}\n"
-                explanation += f"  {recurrence.best_case_explanation}\n"
+                explanation += f"**Solución:**  \n{recurrence.best_case_solution.big_theta}\n\n"
+                explanation += f"**Método usado:**  \n{recurrence.best_case_solution.method_used}\n\n"
+                explanation += f"**Explicación:**  \n{recurrence.best_case_explanation}\n\n"
+                
+                # NUEVO: Agregar pasos de resolución
+                if recurrence.best_case_solution.steps:
+                    explanation += "**Pasos de resolución:**\n"
+                    for i, step in enumerate(recurrence.best_case_solution.steps, 1):
+                        explanation += f"{i}. {step}\n"
+                    explanation += "\n"
+            
+            # ============================================================
+            # CASO PROMEDIO - NUEVO
+            # ============================================================
+            explanation += "### 🟡 CASO PROMEDIO\n\n"
+            explanation += f"**Ecuación de recurrencia:**  \n`{recurrence.average_case_equation}`\n\n"
+            
+            if recurrence.average_case_solution:
+                explanation += f"**Solución:**  \n{recurrence.average_case_solution.big_theta}\n\n"
+                explanation += f"**Método usado:**  \n{recurrence.average_case_solution.method_used}\n\n"
+                explanation += f"**Explicación:**  \n{recurrence.average_case_explanation}\n\n"
+                
+                # NUEVO: Agregar pasos de resolución
+                if recurrence.average_case_solution.steps:
+                    explanation += "**Pasos de resolución:**\n"
+                    for i, step in enumerate(recurrence.average_case_solution.steps, 1):
+                        explanation += f"{i}. {step}\n"
+                    explanation += "\n"
             
             return explanation
         
         else:  # hybrid
-            explanation = f"Algoritmo híbrido (iterativo + recursivo).\n\n"
-            explanation += f"Componente iterativo: {iterative.worst_case}\n"
-            explanation += f"  {iterative.explanation}\n\n"
+            explanation = "**Algoritmo híbrido** (iterativo + recursivo)\n\n"
             
+            explanation += "**Componente iterativo:**  \n"
+            explanation += f"{iterative.worst_case}  \n"
+            explanation += f"{iterative.explanation}\n\n"
+            
+            explanation += "**Componente recursivo:**\n\n"
+            
+            # PEOR CASO
+            explanation += "### 🔴 PEOR CASO\n\n"
             if recurrence.worst_case_solution:
-                explanation += f"Componente recursivo: {recurrence.worst_case_equation}\n"
-                explanation += f"  Solución: {recurrence.worst_case_solution.big_theta}\n"
+                explanation += f"**Ecuación:** `{recurrence.worst_case_equation}`\n\n"
+                explanation += f"**Solución:** {recurrence.worst_case_solution.big_theta}\n\n"
+                
+                if recurrence.worst_case_solution.steps:
+                    explanation += "**Pasos:**\n"
+                    for i, step in enumerate(recurrence.worst_case_solution.steps[:5], 1):
+                        explanation += f"{i}. {step}\n"
+                    explanation += "\n"
+            
+            # MEJOR CASO
+            explanation += "### 🟢 MEJOR CASO\n\n"
+            if recurrence.best_case_solution:
+                explanation += f"**Ecuación:** `{recurrence.best_case_equation}`\n\n"
+                explanation += f"**Solución:** {recurrence.best_case_solution.big_theta}\n\n"
+                
+                if recurrence.best_case_solution.steps:
+                    explanation += "**Pasos:**\n"
+                    for i, step in enumerate(recurrence.best_case_solution.steps[:5], 1):
+                        explanation += f"{i}. {step}\n"
+                    explanation += "\n"
+            
+            # CASO PROMEDIO - NUEVO
+            explanation += "### 🟡 CASO PROMEDIO\n\n"
+            if recurrence.average_case_solution:
+                explanation += f"**Ecuación:** `{recurrence.average_case_equation}`\n\n"
+                explanation += f"**Solución:** {recurrence.average_case_solution.big_theta}\n\n"
+                
+                if recurrence.average_case_solution.steps:
+                    explanation += "**Pasos:**\n"
+                    for i, step in enumerate(recurrence.average_case_solution.steps[:5], 1):
+                        explanation += f"{i}. {step}\n"
+                    explanation += "\n"
             
             return explanation
 

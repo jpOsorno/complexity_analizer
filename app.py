@@ -17,8 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.parser.parser import parse, ParseError
 from src.analyzer.unified_analyzer import analyze_complexity_unified
 from src.visualization.components import (
-    display_procedure_analysis,
-    export_results_json
+    display_procedure_analysis
 )
 
 
@@ -268,20 +267,7 @@ if analyze_button:
                 # Mostrar resultados por procedimiento
                 display_procedure_analysis(results)
                 
-                # Botón de descarga
-                st.divider()
-                
                 col1, col2 = st.columns([1, 3])
-                
-                with col1:
-                    json_data = export_results_json(results)
-                    st.download_button(
-                        label="💾 Descargar JSON",
-                        data=json_data,
-                        file_name="analisis_complejidad.json",
-                        mime="application/json",
-                        use_container_width=True
-                    )
                 
             except ParseError as e:
                 st.error(f"❌ **Error de Sintaxis**")
@@ -299,12 +285,11 @@ if analyze_button:
 # ============================================================================
 
 st.divider()
-
 st.markdown("""
 <div style="text-align: center; color: #6b7280; font-size: 0.875rem;">
     <p>
         🎓 Proyecto de Análisis y Diseño de Algoritmos<br>
-        Universidad: [Tu Universidad] | 2025
+        Universidad: Universidad de Caldas | 2025
     </p>
 </div>
 """, unsafe_allow_html=True)

@@ -40,35 +40,19 @@ def get_recurrence(code: str, procedure_name: Optional[str] = None, case: str = 
 if __name__ == '__main__':
     # Demo rápido (misma muestra que antes)
     sample = """
-QuickSort(A[], p, r)
+Hanoi(n, origen, destino, auxiliar)
 begin
-    if (p < r) then
+    if (n = 1) then
     begin
-        q ← call Partition(A, p, r)
-        call QuickSort(A, p, q-1)
-        call QuickSort(A, q+1, r)
+        return 1
+    end
+    else
+    begin
+        call Hanoi(n-1, origen, auxiliar, destino)
+        call Hanoi(n-1, auxiliar, destino, origen)
+        return 1
     end
 end
-
-Partition(A[], p, r)
-begin
-    pivot ← A[r]
-    i ← p - 1
-    
-    for j ← p to r-1 do
-    begin
-        if (A[j] ≤ pivot) then
-        begin
-            i ← i + 1
-            temp ← A[i]
-            A[i] ← A[j]
-            A[j] ← temp
-        end
-    end
-    
-    return i+1
-end
-
     """
 
     print('Ejemplo:')
