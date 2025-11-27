@@ -1,0 +1,17 @@
+SelectionSort(A[], n)
+begin
+    for i ← 1 to n-1 do
+    begin
+        min_idx ← i
+        for j ← i+1 to n do
+        begin
+            if (A[j] < A[min_idx]) then
+            begin
+                min_idx ← j
+            end
+        end
+        temp ← A[i]
+        A[i] ← A[min_idx]
+        A[min_idx] ← temp
+    end
+end

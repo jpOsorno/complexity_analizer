@@ -1,0 +1,11 @@
+LinearSearch(A[], n, x)
+begin
+    for i ← 1 to n do
+    begin
+        if (A[i] = x) then
+        begin
+            return i
+        end
+    end
+    return -1
+end

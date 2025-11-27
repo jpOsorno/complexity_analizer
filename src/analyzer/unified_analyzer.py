@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from syntax_tree.nodes import *
-from analyzer.complexity_analyzer import BasicComplexityAnalyzer, ComplexityResult
+from analyzer.complexity_analyzer import BasicComplexityAnalyzer, ComplexityResult, IterativeComplexityAnalysis
 from analyzer.recursion_analyzer import RecursionAnalyzerVisitor, RecurrenceEquation
 from analyzer.recurrence_solver import solve_recurrence, RecurrenceSolution
 
@@ -124,8 +124,9 @@ class UnifiedComplexityResult:
     iterative_worst: str = "O(1)"
     iterative_best: str = "Ω(1)"
     iterative_average: str = "Θ(1)"
+    iterative_analysis: Optional['IterativeComplexityAnalysis'] = None  # NUEVO: Campo agregado
     
-    # Análisis recursivo completo (NUEVO)
+    # Análisis recursivo completo
     is_recursive: bool = False
     recurrence_analysis: Optional[RecurrenceAnalysis] = None
     
@@ -159,11 +160,8 @@ COMPLEJIDAD FINAL:
         if self.is_recursive and self.recurrence_analysis:
             result += "\n" + str(self.recurrence_analysis)
         
-        if self.iterative_worst != "O(1)":
-            result += f"""
-ANÁLISIS ITERATIVO:
-  Componente iterativo: {self.iterative_worst}
-"""
+        if self.iterative_analysis:
+            result += "\n" + str(self.iterative_analysis)
         
         result += f"\nEXPLICACIÓN:\n{self.explanation}\n"
         
@@ -185,19 +183,19 @@ ANÁLISIS ITERATIVO:
                 "best_case": self.final_best,
                 "average_case": self.final_average
             },
+            "iterative": {
+                "worst": self.iterative_worst,
+                "best": self.iterative_best,
+                "average": self.iterative_average,
+                "analysis": self.iterative_analysis.to_dict() if self.iterative_analysis else None
+            },
             "recursive": {
                 "is_recursive": self.is_recursive,
                 "recurrence_analysis": self.recurrence_analysis.to_dict() if self.recurrence_analysis else None
             },
-            "iterative": {
-                "worst": self.iterative_worst,
-                "best": self.iterative_best,
-                "average": self.iterative_average
-            },
             "explanation": self.explanation,
             "steps": self.steps
         }
-
 
 # ============================================================================
 # ANALIZADOR UNIFICADO MEJORADO
@@ -251,10 +249,12 @@ class UnifiedComplexityAnalyzer:
             steps.append("✓ Algoritmo iterativo (no recursivo)")
         
         # ====================================================================
-        # PASO 2: Analizar componente iterativo
+        # PASO 2: Analizar componente iterativo (MEJORADO)
         # ====================================================================
         
         iterative_result = self.iterative_analyzer.analyze_procedure(procedure)
+        
+        # NUEVO: iterative_result ahora es IterativeComplexityAnalysis
         steps.append(f"✓ Análisis iterativo: {iterative_result.worst_case}")
         
         # ====================================================================
@@ -281,14 +281,14 @@ class UnifiedComplexityAnalyzer:
                 recurrence_analysis
             )
         else:
-            # Caso iterativo puro
+            # Caso iterativo puro (MEJORADO)
             algorithm_type = "iterative"
             final_complexity = (
                 iterative_result.worst_case,
                 iterative_result.best_case,
                 iterative_result.average_case
             )
-            explanation = f"Algoritmo iterativo con complejidad {iterative_result.worst_case}"
+            explanation = self._generate_iterative_explanation(iterative_result)
         
         # ====================================================================
         # PASO 4: Construir resultado unificado
@@ -299,6 +299,7 @@ class UnifiedComplexityAnalyzer:
             iterative_worst=iterative_result.worst_case,
             iterative_best=iterative_result.best_case,
             iterative_average=iterative_result.average_case,
+            iterative_analysis=iterative_result,  # NUEVO: Guardar análisis completo
             is_recursive=is_recursive,
             recurrence_analysis=recurrence_analysis,
             final_worst=final_complexity[0],
@@ -310,6 +311,66 @@ class UnifiedComplexityAnalyzer:
         )
         
         return result
+    
+    # ========================================================================
+    # NUEVO: Generador de explicación iterativa
+    # ========================================================================
+    
+    def _generate_iterative_explanation(self, analysis: 'IterativeComplexityAnalysis') -> str:
+        """
+        Genera explicación detallada para algoritmos iterativos.
+        
+        NUEVO: Incluye sumatorias y pasos para los 3 casos.
+        """
+        explanation = "**Algoritmo iterativo**\n\n"
+        
+        # ============================================================
+        # PEOR CASO
+        # ============================================================
+        explanation += "### 🔴 PEOR CASO\n\n"
+        explanation += f"**Complejidad:** {analysis.worst_case}\n\n"
+        if getattr(analysis, 'worst_case_summation', None):
+            explanation += f"**Sumatoria:**\n{analysis.worst_case_summation}\n\n"
+        explanation += f"**Explicación:** {getattr(analysis, 'worst_case_explanation', '')}\n\n"
+
+        if getattr(analysis, 'worst_case_steps', None):
+            explanation += "**Pasos del análisis:**\n"
+            for i, step in enumerate(analysis.worst_case_steps, 1):
+                explanation += f"{i}. {step}\n"
+            explanation += "\n"
+
+        # ============================================================
+        # MEJOR CASO
+        # ============================================================
+        explanation += "### 🟢 MEJOR CASO\n\n"
+        explanation += f"**Complejidad:** {getattr(analysis, 'best_case', '')}\n\n"
+
+        if getattr(analysis, 'best_case_summation', None):
+            explanation += f"**Sumatoria:**\n{analysis.best_case_summation}\n\n"
+        explanation += f"**Explicación:** {getattr(analysis, 'best_case_explanation', '')}\n\n"
+
+        if getattr(analysis, 'best_case_steps', None):
+            explanation += "**Pasos del análisis:**\n"
+            for i, step in enumerate(analysis.best_case_steps, 1):
+                explanation += f"{i}. {step}\n"
+            explanation += "\n"
+
+        # ============================================================
+        # CASO PROMEDIO
+        # ============================================================
+        explanation += "### 🟡 CASO PROMEDIO\n\n"
+        explanation += f"**Complejidad:** {getattr(analysis, 'average_case', '')}\n\n"
+
+        if getattr(analysis, 'average_case_summation', None):
+            explanation += f"**Sumatoria:**\n{analysis.average_case_summation}\n\n"
+
+        if getattr(analysis, 'average_case_steps', None):
+            explanation += "**Pasos del análisis:**\n"
+            for i, step in enumerate(analysis.average_case_steps, 1):
+                explanation += f"{i}. {step}\n"
+            explanation += "\n"
+
+        return explanation
     
     # ========================================================================
     # NUEVO: Análisis completo de recurrencia
@@ -391,7 +452,7 @@ class UnifiedComplexityAnalyzer:
     
     def _combine_complexities_enhanced(
         self,
-        iterative: ComplexityResult,
+        iterative: IterativeComplexityAnalysis,
         recurrence: RecurrenceAnalysis,
         algorithm_type: str
     ) -> Tuple[str, str, str]:

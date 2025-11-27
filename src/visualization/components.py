@@ -70,12 +70,13 @@ def format_equation(equation: str) -> str:
 def display_complexity_result(result, procedure_name: str):
     """
     Muestra el resultado del análisis de complejidad de un procedimiento.
+    
     Args:
         result: UnifiedComplexityResult o ComplexityResult
         procedure_name: Nombre del procedimiento
     """
     st.subheader(f"📊 {procedure_name}")
-
+    
     # Tipo de algoritmo
     algo_type = getattr(result, 'algorithm_type', 'iterative')
     type_emoji = {
@@ -83,28 +84,143 @@ def display_complexity_result(result, procedure_name: str):
         'recursive': '🔁',
         'hybrid': '⚡'
     }
-
+    
     st.markdown(f"**Tipo:** {type_emoji.get(algo_type, '📝')} {algo_type.title()}")
-
+    
     # Complejidades principales
     st.markdown("### Complejidad Computacional")
-
+    
     col1, col2, col3 = st.columns(3)
-
+    
     with col1:
         st.markdown("**Peor Caso**")
         worst = getattr(result, 'final_worst', None) or getattr(result, 'worst_case', 'O(?)')
         st.markdown(create_complexity_badge(worst, "worst"), unsafe_allow_html=True)
-
+    
     with col2:
         st.markdown("**Mejor Caso**")
         best = getattr(result, 'final_best', None) or getattr(result, 'best_case', 'Ω(?)')
         st.markdown(create_complexity_badge(best, "best"), unsafe_allow_html=True)
-
+    
     with col3:
         st.markdown("**Caso Promedio**")
         avg = getattr(result, 'final_average', None) or getattr(result, 'average_case', 'Θ(?)')
         st.markdown(create_complexity_badge(avg, "average"), unsafe_allow_html=True)
+    
+    # ========================================================================
+    # ANÁLISIS ITERATIVO DETALLADO - NUEVO
+    # ========================================================================
+    
+    iterative_analysis = getattr(result, 'iterative_analysis', None)
+    
+    if iterative_analysis and algo_type == "iterative":
+        st.markdown("### 🔄 Análisis Iterativo Detallado")
+        
+        # Crear tabs para cada caso
+        tab_worst, tab_best, tab_avg = st.tabs([
+            "🔴 Peor Caso",
+            "🟢 Mejor Caso",
+            "🟡 Caso Promedio"
+        ])
+        
+        # ============================================================
+        # TAB: PEOR CASO
+        # ============================================================
+        with tab_worst:
+            st.markdown("#### Sumatoria / Ecuación")
+            if iterative_analysis.worst_case_summation:
+                st.code(iterative_analysis.worst_case_summation, language=None)
+            else:
+                st.info("No hay sumatorias (complejidad constante)")
+            
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.markdown("**Complejidad:**")
+                st.error(iterative_analysis.worst_case)
+            
+            with col_b:
+                st.markdown("**Estructura:**")
+                st.info(f"{len(iterative_analysis.loops)} ciclo(s), profundidad {iterative_analysis.max_nesting_depth}")
+            
+            # Explicación
+            if iterative_analysis.worst_case_explanation:
+                st.markdown("**Explicación:**")
+                st.markdown(iterative_analysis.worst_case_explanation)
+            
+            # Pasos del análisis
+            if iterative_analysis.worst_case_steps:
+                st.markdown("**Pasos del Análisis:**")
+                for i, step in enumerate(iterative_analysis.worst_case_steps, 1):
+                    st.markdown(f"{i}. {step}")
+        
+        # ============================================================
+        # TAB: MEJOR CASO
+        # ============================================================
+        with tab_best:
+            st.markdown("#### Sumatoria / Ecuación")
+            if iterative_analysis.best_case_summation:
+                st.code(iterative_analysis.best_case_summation, language=None)
+            else:
+                st.info("No hay sumatorias (complejidad constante)")
+            
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.markdown("**Complejidad:**")
+                st.success(iterative_analysis.best_case)
+            
+            with col_b:
+                st.markdown("**Early Exit:**")
+                if iterative_analysis.has_early_exit:
+                    st.success("✓ Detectado")
+                else:
+                    st.info("No detectado")
+            
+            # Explicación
+            if iterative_analysis.best_case_explanation:
+                st.markdown("**Explicación:**")
+                st.markdown(iterative_analysis.best_case_explanation)
+            
+            # Pasos
+            if iterative_analysis.best_case_steps:
+                st.markdown("**Pasos del Análisis:**")
+                for i, step in enumerate(iterative_analysis.best_case_steps, 1):
+                    st.markdown(f"{i}. {step}")
+        
+        # ============================================================
+        # TAB: CASO PROMEDIO
+        # ============================================================
+        with tab_avg:
+            st.markdown("#### Sumatoria / Ecuación")
+            if iterative_analysis.average_case_summation:
+                st.code(iterative_analysis.average_case_summation, language=None)
+            else:
+                st.info("No hay sumatorias (complejidad constante)")
+            
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.markdown("**Complejidad:**")
+                st.warning(iterative_analysis.average_case)
+            
+            with col_b:
+                st.markdown("**Condicionales:**")
+                if iterative_analysis.has_conditionals:
+                    st.info("✓ Detectados")
+                else:
+                    st.info("No detectados")
+            
+            # Explicación
+            if iterative_analysis.average_case_explanation:
+                st.markdown("**Explicación:**")
+                st.markdown(iterative_analysis.average_case_explanation)
+            
+            # Pasos
+            if iterative_analysis.average_case_steps:
+                st.markdown("**Pasos del Análisis:**")
+                for i, step in enumerate(iterative_analysis.average_case_steps, 1):
+                    st.markdown(f"{i}. {step}")
 
     # ========================================================================
     # ANÁLISIS RECURSIVO DETALLADO - MEJORADO

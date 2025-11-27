@@ -1,10 +1,24 @@
+"""
+Analizador de Complejidad para Algoritmos Iterativos - VERSIÓN MEJORADA
+=======================================================================
+
+MEJORA CRÍTICA: Genera análisis detallado con sumatorias y explicaciones
+paso a paso para mejor, peor y caso promedio.
+
+Características:
+- Detección de ciclos anidados con análisis de profundidad
+- Generación de sumatorias matemáticas
+- Explicación paso a paso del análisis
+- Detección de early exit y condiciones
+- Análisis de mejor, peor y caso promedio
+"""
+
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
+from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
-import sympy as sp
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from syntax_tree.nodes import *
 
@@ -14,428 +28,345 @@ from syntax_tree.nodes import *
 # ============================================================================
 
 @dataclass
-class ComplexityResult:
-    """Resultado del análisis de complejidad"""
+class LoopAnalysis:
+    """Análisis detallado de un ciclo individual"""
+    variable: str
+    start: str
+    end: str
+    iterations: str  # Expresión simbólica: "n", "n-1", "n-i", etc.
+    body_cost: str   # Costo del cuerpo: "O(1)", "O(n)", etc.
+    has_early_exit: bool = False
+    condition_for_exit: Optional[str] = None
+    depth: int = 0   # Profundidad de anidamiento
+    
+    def to_summation(self) -> str:
+        """Genera la sumatoria matemática del ciclo"""
+        if self.has_early_exit:
+            return f"Σ(i={self.start} to {self.end}) {self.body_cost} (con early exit posible)"
+        else:
+            return f"Σ(i={self.start} to {self.end}) {self.body_cost}"
+    
+    def __str__(self):
+        exit_note = " [early exit]" if self.has_early_exit else ""
+        return f"FOR {self.variable}={self.start} to {self.end}: {self.iterations} iteraciones{exit_note}"
+
+
+@dataclass
+class IterativeComplexityAnalysis:
+    """Análisis completo de complejidad iterativa"""
+    
+    # Complejidades finales
     worst_case: str = "O(1)"
     best_case: str = "Ω(1)"
     average_case: str = "Θ(1)"
-    exact_cost: Optional[str] = None
-    explanation: str = ""
-    steps: List[str] = field(default_factory=list)
+    
+    # Análisis detallado por caso
+    worst_case_explanation: str = ""
+    best_case_explanation: str = ""
+    average_case_explanation: str = ""
+    
+    # Sumatorias y ecuaciones
+    worst_case_summation: str = ""
+    best_case_summation: str = ""
+    average_case_summation: str = ""
+    
+    # Pasos del análisis
+    worst_case_steps: List[str] = field(default_factory=list)
+    best_case_steps: List[str] = field(default_factory=list)
+    average_case_steps: List[str] = field(default_factory=list)
+    
+    # Información estructural
+    loops: List[LoopAnalysis] = field(default_factory=list)
+    max_nesting_depth: int = 0
+    has_conditionals: bool = False
+    has_early_exit: bool = False
     
     def __str__(self):
-        return f"""
-Complejidad:
-  Peor caso:     {self.worst_case}
-  Mejor caso:    {self.best_case}
-  Caso promedio: {self.average_case}
-  
-Explicación: {self.explanation}
-        """.strip()
+        result = "\n" + "="*70 + "\n"
+        result += "ANÁLISIS ITERATIVO COMPLETO\n"
+        result += "="*70 + "\n"
+        
+        # PEOR CASO
+        result += "\n🔴 PEOR CASO:\n"
+        result += f"  Complejidad: {self.worst_case}\n"
+        if self.worst_case_summation:
+            result += f"  Sumatoria: {self.worst_case_summation}\n"
+        result += f"  Explicación: {self.worst_case_explanation}\n"
+        if self.worst_case_steps:
+            result += "\n  Pasos:\n"
+            for i, step in enumerate(self.worst_case_steps, 1):
+                result += f"    {i}. {step}\n"
+        
+        # MEJOR CASO
+        result += "\n🟢 MEJOR CASO:\n"
+        result += f"  Complejidad: {self.best_case}\n"
+        if self.best_case_summation:
+            result += f"  Sumatoria: {self.best_case_summation}\n"
+        result += f"  Explicación: {self.best_case_explanation}\n"
+        if self.best_case_steps:
+            result += "\n  Pasos:\n"
+            for i, step in enumerate(self.best_case_steps, 1):
+                result += f"    {i}. {step}\n"
+        
+        # CASO PROMEDIO
+        result += "\n🟡 CASO PROMEDIO:\n"
+        result += f"  Complejidad: {self.average_case}\n"
+        if self.average_case_summation:
+            result += f"  Sumatoria: {self.average_case_summation}\n"
+        result += f"  Explicación: {self.average_case_explanation}\n"
+        if self.average_case_steps:
+            result += "\n  Pasos:\n"
+            for i, step in enumerate(self.average_case_steps, 1):
+                result += f"    {i}. {step}\n"
+        
+        result += "\n" + "="*70
+        return result
+    
+    def to_dict(self) -> dict:
+        """Serializa a diccionario"""
+        return {
+            "worst_case": {
+                "complexity": self.worst_case,
+                "summation": self.worst_case_summation,
+                "explanation": self.worst_case_explanation,
+                "steps": self.worst_case_steps
+            },
+            "best_case": {
+                "complexity": self.best_case,
+                "summation": self.best_case_summation,
+                "explanation": self.best_case_explanation,
+                "steps": self.best_case_steps
+            },
+            "average_case": {
+                "complexity": self.average_case,
+                "summation": self.average_case_summation,
+                "explanation": self.average_case_explanation,
+                "steps": self.average_case_steps
+            },
+            "structure": {
+                "max_nesting_depth": self.max_nesting_depth,
+                "num_loops": len(self.loops),
+                "has_conditionals": self.has_conditionals,
+                "has_early_exit": self.has_early_exit
+            }
+        }
 
 
 # ============================================================================
 # ANALIZADOR MEJORADO
 # ============================================================================
 
-class BasicComplexityAnalyzer:
+class EnhancedComplexityAnalyzer:
     """
-    Analizador de complejidad con soporte para ciclos dependientes.
+    Analizador de complejidad iterativa con análisis detallado.
+    
+    MEJORA: Genera sumatorias, explicaciones y pasos para cada caso.
     """
     
     def __init__(self):
         self.current_procedure = None
-        self.results: Dict[str, ComplexityResult] = {}
-        
-        # Contexto para análisis de ciclos anidados
-        self.loop_context: List[Dict] = []  # Stack de información de ciclos
+        self.current_depth = 0
+        self.loops_stack: List[LoopAnalysis] = []
+        self.all_loops: List[LoopAnalysis] = []
+        self.has_early_exit = False
+        self.has_conditionals = False
     
     # ========================================================================
-    # PUNTO DE ENTRADA
+    # ANÁLISIS PRINCIPAL
     # ========================================================================
     
-    def analyze_program(self, program: ProgramNode) -> Dict[str, ComplexityResult]:
-        """Analiza todo el programa"""
-        for procedure in program.procedures:
-            self.current_procedure = procedure.name
-            result = self.analyze_procedure(procedure)
-            self.results[procedure.name] = result
-        
-        return self.results
-    
-    def analyze_procedure(self, procedure: ProcedureNode) -> ComplexityResult:
+    def analyze_procedure(self, procedure: ProcedureNode) -> IterativeComplexityAnalysis:
         """Analiza un procedimiento completo"""
-        result = self.analyze_block(procedure.body)
+        self.current_procedure = procedure.name
+        self.current_depth = 0
+        self.loops_stack = []
+        self.all_loops = []
+        self.has_early_exit = False
+        self.has_conditionals = False
         
-        params = ", ".join(p.name for p in procedure.parameters)
-        result.explanation = f"Procedimiento {procedure.name}({params}): {result.explanation}"
+        # Analizar el cuerpo
+        self._analyze_block(procedure.body)
         
-        return result
+        # Generar análisis para los 3 casos
+        return self._build_complete_analysis()
     
-    # ========================================================================
-    # ANÁLISIS DE BLOQUES Y SENTENCIAS
-    # ========================================================================
-    
-    def analyze_block(self, block: BlockNode) -> ComplexityResult:
+    def _analyze_block(self, block: BlockNode):
         """Analiza un bloque de código"""
-        if not block.statements:
-            return ComplexityResult(explanation="Bloque vacío")
-        
-        results = [self.analyze_statement(stmt) for stmt in block.statements]
-        return self._combine_sequential(results)
+        for stmt in block.statements:
+            self._analyze_statement(stmt)
     
-    def analyze_statement(self, stmt: StatementNode) -> ComplexityResult:
-        """Despacha el análisis según el tipo de sentencia"""
+    def _analyze_statement(self, stmt: StatementNode):
+        """Analiza una sentencia"""
         if isinstance(stmt, ForNode):
-            return self.analyze_for(stmt)
+            self._analyze_for(stmt)
         elif isinstance(stmt, WhileNode):
-            return self.analyze_while(stmt)
+            self._analyze_while(stmt)
         elif isinstance(stmt, RepeatNode):
-            return self.analyze_repeat(stmt)
+            self._analyze_repeat(stmt)
         elif isinstance(stmt, IfNode):
-            return self.analyze_if(stmt)
-        elif isinstance(stmt, AssignmentNode):
-            return self.analyze_assignment(stmt)
-        elif isinstance(stmt, CallStatementNode):
-            return self.analyze_call(stmt)
+            self._analyze_if(stmt)
         elif isinstance(stmt, ReturnNode):
-            return ComplexityResult(explanation="Return statement")
-        else:
-            return ComplexityResult(explanation=f"Sentencia {type(stmt).__name__}")
+            if self.current_depth > 0:
+                self.has_early_exit = True
     
     # ========================================================================
-    # ANÁLISIS DE FOR MEJORADO
+    # ANÁLISIS DE CICLOS
     # ========================================================================
     
-    def analyze_for(self, node: ForNode) -> ComplexityResult:
-        """
-        Analiza un ciclo FOR con detección de dependencias.
+    def _analyze_for(self, node: ForNode):
+        """Analiza un ciclo FOR"""
+        # Extraer información del ciclo
+        variable = node.variable
+        start = self._expr_to_string(node.start)
+        end = self._expr_to_string(node.end)
         
-        MEJORA CLAVE: Detecta si los límites dependen de variables
-        de ciclos externos.
-        """
-        # 1. Guardar contexto del ciclo actual
-        loop_info = {
-            'variable': node.variable,
-            'start': node.start,
-            'end': node.end,
-            'depth': len(self.loop_context)
-        }
-        self.loop_context.append(loop_info)
+        # Calcular iteraciones
+        iterations = self._calculate_iterations(start, end, variable)
         
-        # 2. Calcular número de iteraciones (considerando dependencias)
-        iterations_symbolic = self._calculate_iterations_symbolic(node)
-        iterations_simplified = self._simplify_iterations(iterations_symbolic)
+        # Detectar early exit en el cuerpo
+        has_exit = self._has_early_exit(node.body)
         
-        # 3. Detectar early exit
-        has_early_exit = self._has_early_exit(node.body)
+        # Crear análisis del ciclo
+        loop = LoopAnalysis(
+            variable=variable,
+            start=start,
+            end=end,
+            iterations=iterations,
+            body_cost="O(1)",  # Se actualizará después
+            has_early_exit=has_exit,
+            depth=self.current_depth
+        )
         
-        # 4. Analizar el cuerpo
-        body_result = self.analyze_block(node.body)
+        # Agregar al stack y lista
+        self.loops_stack.append(loop)
+        self.all_loops.append(loop)
         
-        # 5. Multiplicar: iteraciones × cuerpo
-        result = self._multiply_complexity(iterations_simplified, body_result)
+        # Analizar cuerpo (incrementar profundidad)
+        self.current_depth += 1
+        self._analyze_block(node.body)
+        self.current_depth -= 1
         
-        # 6. Ajustar por early exit
-        if has_early_exit:
-            result.best_case = "Ω(1)"
-            result.explanation = (
-                f"FOR {node.variable} con early exit: "
-                f"Peor caso {result.worst_case}, Mejor caso Ω(1)"
-            )
-        else:
-            result.explanation = (
-                f"FOR {node.variable}: {iterations_simplified} iteraciones × "
-                f"{body_result.worst_case} = {result.worst_case}"
-            )
+        # Actualizar costo del cuerpo basado en ciclos internos
+        if self.current_depth == 0:
+            # Es el ciclo más externo, calcular costo acumulado
+            loop.body_cost = self._calculate_body_cost(node.body)
         
-        # 7. Agregar detalles
-        result.steps.append(f"Ciclo FOR: {iterations_symbolic} → {iterations_simplified}")
-        if has_early_exit:
-            result.steps.append("Detectado early exit")
+        self.loops_stack.pop()
+    
+    def _analyze_while(self, node: WhileNode):
+        """Analiza WHILE (similar a FOR pero con iteraciones indeterminadas)"""
+        has_exit = self._has_early_exit(node.body)
         
-        # 8. Restaurar contexto
-        self.loop_context.pop()
+        loop = LoopAnalysis(
+            variable="while",
+            start="0",
+            end="n",
+            iterations="n (indeterminado)",
+            body_cost="O(1)",
+            has_early_exit=has_exit,
+            depth=self.current_depth
+        )
         
-        return result
+        self.loops_stack.append(loop)
+        self.all_loops.append(loop)
+        
+        self.current_depth += 1
+        self._analyze_block(node.body)
+        self.current_depth -= 1
+        
+        self.loops_stack.pop()
+    
+    def _analyze_repeat(self, node: RepeatNode):
+        """Analiza REPEAT-UNTIL"""
+        has_exit = True  # REPEAT siempre ejecuta al menos una vez
+        
+        loop = LoopAnalysis(
+            variable="repeat",
+            start="1",
+            end="n",
+            iterations="n (indeterminado)",
+            body_cost="O(1)",
+            has_early_exit=has_exit,
+            depth=self.current_depth
+        )
+        
+        self.loops_stack.append(loop)
+        self.all_loops.append(loop)
+        
+        self.current_depth += 1
+        self._analyze_block(node.body)
+        self.current_depth -= 1
+        
+        self.loops_stack.pop()
+    
+    def _analyze_if(self, node: IfNode):
+        """Analiza condicionales"""
+        self.has_conditionals = True
+        
+        # Analizar ambas ramas
+        self._analyze_block(node.then_block)
+        if node.else_block:
+            self._analyze_block(node.else_block)
     
     # ========================================================================
-    # CÁLCULO DE ITERACIONES SIMBÓLICO
+    # CÁLCULOS DE ITERACIONES Y COSTOS
     # ========================================================================
     
-    def _calculate_iterations_symbolic(self, node: ForNode) -> str:
+    def _calculate_iterations(self, start: str, end: str, variable: str) -> str:
         """
-        Calcula iteraciones usando análisis simbólico.
-        
-        CLAVE: Detecta patrones como:
-        - for i=1 to n → n
-        - for j=i to n → n-i+1
-        - for j=i to n-i → n-2i+1 (ESTE ES EL CASO PROBLEMÁTICO)
-        """
-        # Extraer expresiones
-        start_expr = self._expr_to_symbolic(node.start)
-        end_expr = self._expr_to_symbolic(node.end)
-        
-        # Calcular: end - start + 1
-        try:
-            n = sp.Symbol('n', positive=True, integer=True)
-            
-            # Reemplazar identificadores por símbolos
-            start_val = self._parse_symbolic(start_expr, n)
-            end_val = self._parse_symbolic(end_expr, n)
-            
-            # Iteraciones = end - start + 1
-            iterations = end_val - start_val + 1
-            iterations = sp.simplify(iterations)
-            
-            return str(iterations)
-        
-        except Exception as e:
-            # Fallback: usar heurística simple
-            return self._calculate_iterations_heuristic(node.start, node.end)
-    
-    def _parse_symbolic(self, expr_str: str, n: sp.Symbol) -> sp.Expr:
-        """
-        Convierte una expresión string a SymPy.
+        Calcula el número de iteraciones de un ciclo.
         
         Ejemplos:
-        - "n" → n
-        - "n-1" → n-1
-        - "i" → i (variable de ciclo externo)
-        - "n-i" → n-i
+        - start=1, end=n → "n"
+        - start=1, end=n-1 → "n-1"
+        - start=i, end=n → "n-i+1"
+        - start=1, end=n-i → "n-i"
         """
-        # Detectar variables de ciclos externos
-        for loop_info in self.loop_context:
-            var_name = loop_info['variable']
-            # Crear símbolo para la variable del ciclo
-            if var_name in expr_str:
-                var_symbol = sp.Symbol(var_name, positive=True, integer=True)
-                expr_str = expr_str.replace(var_name, str(var_symbol))
+        # Normalizar
+        start_clean = start.strip()
+        end_clean = end.strip()
         
-        # Reemplazar 'n' con el símbolo n
-        expr_str = expr_str.replace('n', str(n))
-        
-        # Parsear con SymPy
-        try:
-            return sp.sympify(expr_str)
-        except:
-            # Si falla, retornar la expresión como string
-            return sp.Symbol(expr_str)
-    
-    def _expr_to_symbolic(self, expr: ExpressionNode) -> str:
-        """Convierte un ExpressionNode a string simbólico"""
-        if isinstance(expr, NumberNode):
-            return str(expr.value)
-        elif isinstance(expr, IdentifierNode):
-            return expr.name
-        elif isinstance(expr, BinaryOpNode):
-            left = self._expr_to_symbolic(expr.left)
-            right = self._expr_to_symbolic(expr.right)
-            
-            # Manejar operadores
-            if expr.op == '+':
-                return f"({left}+{right})"
-            elif expr.op == '-':
-                return f"({left}-{right})"
-            elif expr.op == '*':
-                return f"({left}*{right})"
-            elif expr.op == '/':
-                return f"({left}/{right})"
-            elif expr.op == '^':
-                return f"({left}**{right})"
-            else:
-                return f"({left}{expr.op}{right})"
-        else:
-            return "expr"
-    
-    # ========================================================================
-    # SIMPLIFICACIÓN DE ITERACIONES
-    # ========================================================================
-    
-    def _simplify_iterations(self, symbolic_expr: str) -> str:
-        """
-        Simplifica una expresión simbólica de iteraciones.
-        
-        CASOS ESPECIALES:
-        - "n - 2*i + 1" con i ∈ [1, n] → O(n) (promedio)
-        - "n - i + 1" con i ∈ [1, n] → O(n)
-        - Constantes → O(1)
-        """
-        try:
-            n = sp.Symbol('n', positive=True, integer=True)
-            expr = sp.sympify(symbolic_expr)
-            
-            # Caso 1: Constante
-            if expr.is_number:
-                return "1"
-            
-            # Caso 2: Lineal en n (sin variables de ciclo)
-            if expr.free_symbols == {n}:
-                # Simplificar: n-1 → n, n+1 → n, 2n → n
-                coeff = expr.as_coefficient(n)
-                if coeff is not None:
-                    return "n"
-                
-                # Expresión más compleja pero lineal
-                degree = sp.degree(expr, n)
-                if degree == 1:
-                    return "n"
-                elif degree == 2:
-                    return "n²"
-                elif degree == 3:
-                    return "n³"
-            
-            # Caso 3: Depende de variables de ciclos externos
-            # Ejemplo: n - 2*i + 1
-            # Necesitamos estimar el valor promedio
-            if len(expr.free_symbols) > 1:
-                # Detectar si tiene forma: n - k*i + c
-                for loop_info in self.loop_context:
-                    var_name = loop_info['variable']
-                    var_symbol = sp.Symbol(var_name, positive=True, integer=True)
-                    
-                    if var_symbol in expr.free_symbols:
-                        # Calcular suma total sobre el rango de i
-                        # Ejemplo: Σ(n - 2i + 1) para i=1 to n
-                        total = self._sum_over_range(expr, var_symbol, n)
-                        
-                        if total:
-                            return self._classify_complexity(total, n)
-            
-            # Caso 4: No se pudo simplificar, retornar como está
-            return str(expr)
-        
-        except Exception as e:
-            # Fallback
-            return symbolic_expr
-    
-    def _sum_over_range(self, expr: sp.Expr, var: sp.Symbol, n: sp.Symbol) -> Optional[sp.Expr]:
-        """
-        Calcula la suma de una expresión sobre un rango.
-        
-        Ejemplo:
-        expr = n - 2*i + 1
-        var = i
-        rango = 1 to n-1
-        
-        Suma = Σ(n - 2i + 1) para i=1 to n-1
-             = (n-1)*n - 2*(n-1)*n/2 + (n-1)
-             = n² - n - n² + n + n - 1
-             = n - 1 ≈ n
-        """
-        try:
-            # Encontrar el rango de la variable (del contexto)
-            start_val = 1  # Por defecto
-            end_val = n - 1  # Por defecto para ciclos hasta n-1
-            
-            # Calcular la suma
-            total = sp.summation(expr, (var, start_val, end_val))
-            total = sp.simplify(total)
-            
-            return total
-        
-        except Exception as e:
-            return None
-    
-    def _classify_complexity(self, expr: sp.Expr, n: sp.Symbol) -> str:
-        """
-        Clasifica la complejidad de una expresión.
-        
-        Ejemplos:
-        - n → "n"
-        - n² → "n²"
-        - n - 1 → "n"
-        - n²/2 → "n²"
-        """
-        # Simplificar primero
-        expr = sp.simplify(expr)
-        
-        # Obtener el grado
-        degree = sp.degree(expr, n)
-        
-        if degree == 0:
-            return "1"
-        elif degree == 1:
-            return "n"
-        elif degree == 2:
-            return "n²"
-        elif degree == 3:
-            return "n³"
-        else:
-            return f"n^{degree}"
-    
-    # ========================================================================
-    # HEURÍSTICA SIMPLE (FALLBACK)
-    # ========================================================================
-    
-    def _calculate_iterations_heuristic(self, start: ExpressionNode, 
-                                       end: ExpressionNode) -> str:
-        """Heurística simple (usada como fallback)"""
-        start_val = self._extract_value(start)
-        end_val = self._extract_value(end)
-        
-        # Ambos constantes
-        if isinstance(start_val, int) and isinstance(end_val, int):
-            count = end_val - start_val + 1
-            return str(max(1, count))
-        
-        # Start constante, end variable
-        if isinstance(start_val, int):
-            if start_val in [0, 1]:
-                return self._simplify_expression(str(end_val))
-            else:
+        # Caso simple: start=1 o 0
+        if start_clean in ["0", "1"]:
+            if end_clean == "n":
                 return "n"
-        
-        # Ambos variables
-        return "n"
-    
-    def _extract_value(self, expr: ExpressionNode) -> Union[int, str]:
-        """Extrae el valor de una expresión"""
-        if isinstance(expr, NumberNode):
-            return expr.value
-        elif isinstance(expr, IdentifierNode):
-            return expr.name
-        elif isinstance(expr, BinaryOpNode):
-            left = self._extract_value(expr.left)
-            right = self._extract_value(expr.right)
-            
-            if expr.op == "-":
-                if isinstance(left, str) and isinstance(right, int):
-                    return left
-                elif isinstance(left, int) and isinstance(right, int):
-                    return left - right
-                else:
-                    return f"{left}-{right}"
-            elif expr.op == "+":
-                if isinstance(left, str) and isinstance(right, int):
-                    return left
-                elif isinstance(left, int) and isinstance(right, int):
-                    return left + right
-                else:
-                    return f"{left}+{right}"
+            elif "n-1" in end_clean:
+                return "n-1" if start_clean == "1" else "n"
+            elif "n-i" in end_clean:
+                return "n-i" if start_clean == "1" else "n-i+1"
+            elif end_clean.replace(" ", "") == "n-1":
+                return "n-1" if start_clean == "1" else "n"
             else:
-                return f"({left}{expr.op}{right})"
-        else:
-            return "expr"
+                return end_clean
+        
+        # Caso: start=variable (ej: i)
+        if start_clean.isalpha() and len(start_clean) == 1:
+            if end_clean == "n":
+                return f"n-{start_clean}+1"
+            elif "n-" in end_clean:
+                return f"{end_clean}-{start_clean}+1"
+            else:
+                return f"{end_clean}-{start_clean}+1"
+        
+        # Fallback
+        return f"{end_clean}-{start_clean}+1"
     
-    # ========================================================================
-    # MÉTODOS AUXILIARES (sin cambios significativos)
-    # ========================================================================
+    def _calculate_body_cost(self, block: BlockNode) -> str:
+        """Calcula el costo del cuerpo de un ciclo"""
+        # Contar ciclos internos
+        inner_loops = sum(1 for stmt in block.statements if isinstance(stmt, (ForNode, WhileNode, RepeatNode)))
+        
+        if inner_loops == 0:
+            return "O(1)"
+        elif inner_loops == 1:
+            return "O(n)"
+        elif inner_loops == 2:
+            return "O(n²)"
+        else:
+            return f"O(n^{inner_loops})"
     
     def _has_early_exit(self, block: BlockNode) -> bool:
-        """Detecta si hay early exit (return en condicional)"""
-        for stmt in block.statements:
-            if isinstance(stmt, ReturnNode):
-                return True
-            elif isinstance(stmt, IfNode):
-                if self._block_has_return(stmt.then_block):
-                    return True
-                if stmt.else_block and self._block_has_return(stmt.else_block):
-                    return True
-        return False
-    
-    def _block_has_return(self, block: BlockNode) -> bool:
-        """Verifica si un bloque contiene un return"""
+        """Detecta si hay early exit en un bloque"""
         for stmt in block.statements:
             if isinstance(stmt, ReturnNode):
                 return True
@@ -446,317 +377,240 @@ class BasicComplexityAnalyzer:
                     return True
         return False
     
-    def analyze_while(self, node: WhileNode) -> ComplexityResult:
-        """Analiza WHILE"""
-        body_result = self.analyze_block(node.body)
-        has_early_exit = self._has_early_exit(node.body)
-        
-        if has_early_exit:
-            return ComplexityResult(
-                worst_case="O(n)",
-                best_case="Ω(1)",
-                average_case="Θ(n)",
-                explanation="WHILE con early exit"
-            )
-        else:
-            return ComplexityResult(
-                worst_case="O(n)",
-                best_case="Ω(1)",
-                average_case="Θ(n)",
-                explanation="WHILE con iteraciones indeterminadas"
-            )
+    def _block_has_return(self, block: BlockNode) -> bool:
+        """Verifica si un bloque contiene return"""
+        for stmt in block.statements:
+            if isinstance(stmt, ReturnNode):
+                return True
+            if isinstance(stmt, IfNode):
+                if self._block_has_return(stmt.then_block):
+                    return True
+                if stmt.else_block and self._block_has_return(stmt.else_block):
+                    return True
+        return False
     
-    def analyze_repeat(self, node: RepeatNode) -> ComplexityResult:
-        """Analiza REPEAT-UNTIL"""
-        body_result = self.analyze_block(node.body)
-        return ComplexityResult(
-            worst_case="O(n)",
-            best_case="Ω(1)",
-            average_case="Θ(n)",
-            explanation="REPEAT-UNTIL"
-        )
-    
-    def analyze_if(self, node: IfNode) -> ComplexityResult:
-        """Analiza IF-THEN-ELSE"""
-        then_result = self.analyze_block(node.then_block)
-        
-        if node.else_block:
-            else_result = self.analyze_block(node.else_block)
-            result = self._max_complexity(then_result, else_result)
-            result.explanation = f"IF: max({then_result.worst_case}, {else_result.worst_case})"
-        else:
-            result = then_result
-            result.explanation = f"IF: {then_result.worst_case}"
-        
-        return result
-    
-    def analyze_assignment(self, node: AssignmentNode) -> ComplexityResult:
-        """Analiza asignación"""
-        return ComplexityResult(explanation="Asignación: O(1)")
-    
-    def analyze_call(self, node: CallStatementNode) -> ComplexityResult:
-        """Analiza llamada a procedimiento"""
-        if node.name in self.results:
-            called_result = self.results[node.name]
-            return ComplexityResult(
-                worst_case=called_result.worst_case,
-                best_case=called_result.best_case,
-                average_case=called_result.average_case,
-                explanation=f"Llamada a {node.name}"
-            )
-        else:
-            return ComplexityResult(explanation=f"Llamada a {node.name}: O(1)")
-    
-    # ========================================================================
-    # COMBINACIÓN DE COMPLEJIDADES
-    # ========================================================================
-    
-    def _combine_sequential(self, results: List[ComplexityResult]) -> ComplexityResult:
-        """Combina complejidades de sentencias secuenciales"""
-        if not results:
-            return ComplexityResult()
-        
-        if len(results) == 1:
-            result = results[0]
-            result.worst_case = self._normalize_complexity(result.worst_case)
-            result.best_case = self._normalize_complexity(result.best_case)
-            result.average_case = self._normalize_complexity(result.average_case)
-            return result
-        
-        # Encontrar la dominante
-        dominant = results[0]
-        for result in results[1:]:
-            if self._is_greater_complexity(result.worst_case, dominant.worst_case):
-                dominant = result
-        
-        dominant.worst_case = self._normalize_complexity(dominant.worst_case)
-        dominant.best_case = self._normalize_complexity(dominant.best_case)
-        dominant.average_case = self._normalize_complexity(dominant.average_case)
-        
-        return dominant
-    
-    def _multiply_complexity(self, iterations: str, 
-                            body: ComplexityResult) -> ComplexityResult:
-        """Multiplica complejidades"""
-        body_order = self._extract_order(body.worst_case)
-        iterations_simplified = self._simplify_expression(iterations)
-        
-        if body_order == "1":
-            new_order = iterations_simplified
-        elif iterations_simplified == "1":
-            new_order = body_order
-        else:
-            new_order = self._multiply_orders(iterations_simplified, body_order)
-        
-        new_order = self._simplify_expression(new_order)
-        
-        return ComplexityResult(
-            worst_case=self._normalize_complexity(f"O({new_order})"),
-            best_case=self._normalize_complexity(f"Ω({new_order})"),
-            average_case=self._normalize_complexity(f"Θ({new_order})"),
-            explanation=f"{iterations} × {body.worst_case} = O({new_order})"
-        )
-    
-    def _multiply_orders(self, a: str, b: str) -> str:
-        """Multiplica dos órdenes"""
-        if a == "1":
-            return b
-        if b == "1":
-            return a
-        
-        a_power = self._get_n_power(a)
-        b_power = self._get_n_power(b)
-        
-        if a_power is not None and b_power is not None:
-            total_power = a_power + b_power
-            
-            if total_power == 1:
-                return "n"
-            elif total_power == 2:
-                return "n²"
-            elif total_power == 3:
-                return "n³"
-            else:
-                return f"n^{total_power}"
-        
-        if "log" in a or "log" in b:
-            if a_power == 1 or b_power == 1:
-                return "n×log(n)"
-        
-        return f"{a}×{b}"
-    
-    def _get_n_power(self, expr: str) -> Optional[int]:
-        """Obtiene la potencia de n"""
-        expr = expr.strip()
-        
-        if expr == "n":
-            return 1
-        elif expr == "n²":
-            return 2
-        elif expr == "n³":
-            return 3
-        elif "n^" in expr:
-            try:
-                return int(expr.split("^")[1])
-            except:
-                return None
-        else:
-            return None
-    
-    def _simplify_expression(self, expr: str) -> str:
-        """Simplifica una expresión"""
-        expr = str(expr).strip()
-        
-        # Constantes → "1"
-        try:
-            int(expr)
-            return "1"
-        except:
-            pass
-        
-        # Expresiones con n
-        if 'n' in expr:
-            if '-' in expr and not '×' in expr:
-                return 'n'
-            if '+' in expr and not '×' in expr:
-                return 'n'
-            if expr[0].isdigit() and 'n' in expr:
-                return 'n'
-            if '/' in expr and 'n' in expr:
-                return 'n'
-        
-        # Ya es estándar
-        if expr in ['1', 'n', 'n²', 'n³', 'log(n)', 'n×log(n)']:
-            return expr
-        
-        # Multiplicaciones
-        if '×' in expr:
-            parts = expr.split('×')
-            n_count = sum(1 for p in parts if 'n' in p)
-            
-            if n_count == 0:
-                return '1'
-            elif n_count == 1:
-                return 'n'
-            elif n_count == 2:
-                return 'n²'
-            elif n_count == 3:
-                return 'n³'
-        
-        return expr
-    
-    def _normalize_complexity(self, complexity: str) -> str:
-        """Normaliza una complejidad"""
-        order = self._extract_order(complexity)
-        simplified = self._simplify_expression(order)
-        
-        if complexity.startswith("O("):
-            return f"O({simplified})"
-        elif complexity.startswith("Ω("):
-            return f"Ω({simplified})"
-        elif complexity.startswith("Θ("):
-            return f"Θ({simplified})"
-        else:
-            return complexity
-    
-    def _max_complexity(self, a: ComplexityResult, 
-                        b: ComplexityResult) -> ComplexityResult:
-        """Toma el máximo"""
-        if self._is_greater_complexity(a.worst_case, b.worst_case):
-            return a
-        else:
-            return b
-    
-    def _is_greater_complexity(self, a: str, b: str) -> bool:
-        """Compara complejidades"""
-        order = {
-            "1": 0,
-            "log(n)": 1,
-            "n": 2,
-            "n×log(n)": 3,
-            "n²": 4,
-            "n³": 5,
-            "2^n": 6,
-            "n!": 7
-        }
-        
-        a_order = self._extract_order(a)
-        b_order = self._extract_order(b)
-        
-        return order.get(a_order, 2) > order.get(b_order, 2)
-    
-    def _extract_order(self, complexity: str) -> str:
-        """Extrae el orden"""
-        for prefix in ["O(", "Ω(", "Θ("]:
-            if complexity.startswith(prefix):
-                complexity = complexity[len(prefix):-1]
-        
-        return complexity
-    
-    def _expr_to_str(self, expr: ExpressionNode) -> str:
+    def _expr_to_string(self, expr: ExpressionNode) -> str:
         """Convierte expresión a string"""
         if isinstance(expr, NumberNode):
             return str(expr.value)
         elif isinstance(expr, IdentifierNode):
             return expr.name
         elif isinstance(expr, BinaryOpNode):
-            left = self._expr_to_str(expr.left)
-            right = self._expr_to_str(expr.right)
+            left = self._expr_to_string(expr.left)
+            right = self._expr_to_string(expr.right)
             return f"{left}{expr.op}{right}"
         else:
-            return "expr"
-
-
-# ============================================================================
-# API PÚBLICA
-# ============================================================================
-
-def analyze_complexity(ast: ProgramNode) -> Dict[str, ComplexityResult]:
-    """Analiza complejidad de un programa completo"""
-    analyzer = BasicComplexityAnalyzer()
-    return analyzer.analyze_program(ast)
-
-
-# ============================================================================
-# EJEMPLO DE USO
-# ============================================================================
-
-if __name__ == "__main__":
-    from parser.parser import parse
+            return "?"
     
-    # CASO PROBLEMÁTICO
-    code = """
-SumArray(A[], n)
-begin
-    sum ← 0
-    for i ← 1 to n do
-    begin
-        sum ← sum + A[i]
-    end
-    return sum
-end
-    """
+    # ========================================================================
+    # CONSTRUCCIÓN DEL ANÁLISIS COMPLETO
+    # ========================================================================
     
-    print("="*70)
-    print("ANÁLISIS MEJORADO - CASO PROBLEMÁTICO")
-    print("="*70)
-    print("\nCódigo:")
-    print(code)
-    
-    # Parse
-    ast = parse(code)
-    
-    # Analyze
-    results = analyze_complexity(ast)
-    
-    # Display
-    for proc_name, result in results.items():
-        print("\n" + "="*70)
-        print(f"Procedimiento: {proc_name}")
-        print("="*70)
-        print(result)
+    def _build_complete_analysis(self) -> IterativeComplexityAnalysis:
+        """Construye el análisis completo para los 3 casos"""
         
-        if result.steps:
-            print("\nPasos del análisis:")
-            for step in result.steps:
-                print(f"  • {step}")
+        analysis = IterativeComplexityAnalysis()
+        analysis.loops = self.all_loops
+        analysis.max_nesting_depth = max((loop.depth for loop in self.all_loops), default=0) + 1
+        analysis.has_conditionals = self.has_conditionals
+        analysis.has_early_exit = self.has_early_exit
+        
+        # ====================================================================
+        # PEOR CASO
+        # ====================================================================
+        
+        worst_steps = []
+        worst_steps.append("Análisis del peor caso (todos los ciclos ejecutan máximo de iteraciones)")
+        
+        # Generar sumatoria
+        if len(self.all_loops) == 0:
+            analysis.worst_case = "O(1)"
+            analysis.worst_case_summation = "No hay ciclos"
+            analysis.worst_case_explanation = "No hay ciclos, solo operaciones constantes"
+            worst_steps.append("Sin ciclos → O(1)")
+        
+        elif len(self.all_loops) == 1:
+            loop = self.all_loops[0]
+            analysis.worst_case_summation = loop.to_summation()
+            analysis.worst_case = f"O({loop.iterations})"
+            analysis.worst_case_explanation = f"Un solo ciclo de {loop.iterations} iteraciones"
+            worst_steps.append(f"Ciclo: for {loop.variable} = {loop.start} to {loop.end}")
+            worst_steps.append(f"Iteraciones: {loop.iterations}")
+            worst_steps.append(f"Costo por iteración: O(1)")
+            worst_steps.append(f"Total: {loop.iterations} × O(1) = O({loop.iterations})")
+        
+        else:
+            # Ciclos anidados
+            analysis.worst_case_summation = self._generate_nested_summation(self.all_loops)
+            complexity = self._calculate_nested_complexity(self.all_loops)
+            analysis.worst_case = f"O({complexity})"
+            
+            worst_steps.append(f"Ciclos anidados detectados (profundidad: {analysis.max_nesting_depth})")
+            
+            for i, loop in enumerate(self.all_loops, 1):
+                indent = "  " * loop.depth
+                worst_steps.append(f"{indent}Ciclo {i}: for {loop.variable} = {loop.start} to {loop.end}")
+                worst_steps.append(f"{indent}  → {loop.iterations} iteraciones")
+            
+            worst_steps.append(f"\nMultiplicar iteraciones: {self._format_multiplication(self.all_loops)}")
+            worst_steps.append(f"Simplificar: O({complexity})")
+            
+            analysis.worst_case_explanation = self._explain_nested_loops(self.all_loops, "peor")
+        
+        analysis.worst_case_steps = worst_steps
+        
+        # ====================================================================
+        # MEJOR CASO
+        # ====================================================================
+        
+        best_steps = []
+        
+        if self.has_early_exit:
+            best_steps.append("Análisis del mejor caso (early exit detectado)")
+            analysis.best_case = "Ω(1)"
+            analysis.best_case_summation = "Early exit en primera iteración"
+            analysis.best_case_explanation = "Con early exit, el algoritmo puede terminar en la primera iteración"
+            best_steps.append("Early exit posible → Ω(1)")
+        else:
+            best_steps.append("Análisis del mejor caso (sin early exit, igual al peor caso)")
+            analysis.best_case = analysis.worst_case.replace("O", "Ω")
+            analysis.best_case_summation = analysis.worst_case_summation
+            analysis.best_case_explanation = "Sin early exit, el mejor caso es igual al peor caso"
+            best_steps.extend([f"  {step}" for step in worst_steps[1:]])
+        
+        analysis.best_case_steps = best_steps
+        
+        # ====================================================================
+        # CASO PROMEDIO
+        # ====================================================================
+        
+        avg_steps = []
+        avg_steps.append("Análisis del caso promedio")
+        
+        if self.has_early_exit:
+            # Con early exit, el promedio está entre O(1) y O(worst)
+            analysis.average_case = analysis.worst_case.replace("O", "Θ")
+            analysis.average_case_summation = "Promedio entre mejor y peor caso"
+            analysis.average_case_explanation = f"En promedio, con early exit, la complejidad es {analysis.average_case}"
+            avg_steps.append(f"Con early exit: Θ(n/2) ≈ {analysis.average_case}")
+        else:
+            # Sin early exit, promedio = peor caso
+            analysis.average_case = analysis.worst_case.replace("O", "Θ")
+            analysis.average_case_summation = analysis.worst_case_summation
+            analysis.average_case_explanation = "Sin early exit, el caso promedio es igual al peor caso"
+            avg_steps.append(f"Sin early exit → Caso promedio = Peor caso")
+            avg_steps.append(f"Resultado: {analysis.average_case}")
+        
+        analysis.average_case_steps = avg_steps
+        
+        return analysis
+    
+    # ========================================================================
+    # GENERADORES DE SUMATORIAS Y EXPLICACIONES
+    # ========================================================================
+    
+    def _generate_nested_summation(self, loops: List[LoopAnalysis]) -> str:
+        """Genera la sumatoria anidada"""
+        if len(loops) == 0:
+            return "1"
+        elif len(loops) == 1:
+            return loops[0].to_summation()
+        else:
+            # Construir sumatorias anidadas
+            result = ""
+            for loop in sorted(loops, key=lambda l: l.depth):
+                result += f"Σ({loop.variable}={loop.start} to {loop.end}) "
+            result += "1"
+            return result
+    
+    def _calculate_nested_complexity(self, loops: List[LoopAnalysis]) -> str:
+        """Calcula la complejidad de ciclos anidados"""
+        if len(loops) == 0:
+            return "1"
+        
+        # Contar potencia de n
+        n_power = 0
+        has_dependent = False
+        
+        for loop in loops:
+            if "n" in loop.iterations:
+                if any(var in loop.iterations for var in [l.variable for l in loops if l.depth < loop.depth]):
+                    # Depende de variable externa
+                    has_dependent = True
+                n_power += 1
+        
+        if n_power == 0:
+            return "1"
+        elif n_power == 1:
+            return "n"
+        elif n_power == 2:
+            return "n²"
+        elif n_power == 3:
+            return "n³"
+        else:
+            return f"n^{n_power}"
+    
+    def _format_multiplication(self, loops: List[LoopAnalysis]) -> str:
+        """Formatea la multiplicación de iteraciones"""
+        iterations = [loop.iterations for loop in loops]
+        return " × ".join(iterations)
+    
+    def _explain_nested_loops(self, loops: List[LoopAnalysis], case_type: str) -> str:
+        """Genera explicación para ciclos anidados"""
+        if len(loops) <= 1:
+            return "Ciclo simple"
+        
+        explanation = f"Ciclos anidados (profundidad {max(l.depth for l in loops) + 1}):\n"
+        
+        for i, loop in enumerate(loops, 1):
+            indent = "  " * loop.depth
+            explanation += f"{indent}• Ciclo {i}: {loop.iterations} iteraciones\n"
+        
+        complexity = self._calculate_nested_complexity(loops)
+        explanation += f"\nComplejidad final: O({complexity})"
+        
+        return explanation
+
+
+# ============================================================================
+# API PÚBLICA (COMPATIBILIDAD CON unified_analyzer)
+# ============================================================================
+
+class BasicComplexityAnalyzer:
+    """Wrapper para mantener compatibilidad con código existente"""
+    
+    def __init__(self):
+        self.enhanced = EnhancedComplexityAnalyzer()
+    
+    def analyze_procedure(self, procedure: ProcedureNode) -> IterativeComplexityAnalysis:
+        """Analiza un procedimiento (retorna análisis detallado)"""
+        return self.enhanced.analyze_procedure(procedure)
+
+
+# ============================================================================
+# COMPATIBILIDAD: ComplexityResult (DEPRECATED)
+# ============================================================================
+
+@dataclass
+class ComplexityResult:
+    """
+    DEPRECATED: Mantener para compatibilidad.
+    Usar IterativeComplexityAnalysis en su lugar.
+    """
+    worst_case: str = "O(1)"
+    best_case: str = "Ω(1)"
+    average_case: str = "Θ(1)"
+    exact_cost: Optional[str] = None
+    explanation: str = ""
+    steps: List[str] = field(default_factory=list)
+
+
+def analyze_complexity(ast: ProgramNode) -> Dict[str, IterativeComplexityAnalysis]:
+    """API pública para análisis de complejidad"""
+    analyzer = BasicComplexityAnalyzer()
+    results = {}
+    
+    for procedure in ast.procedures:
+        results[procedure.name] = analyzer.analyze_procedure(procedure)
+    
+    return results
