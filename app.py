@@ -156,64 +156,6 @@ Soporta algoritmos **iterativos**, **recursivos** e **híbridos**.
 
 st.divider()
 
-
-# ============================================================================
-# SIDEBAR: EJEMPLOS
-# ============================================================================
-
-with st.sidebar:
-    st.header("📚 Ejemplos")
-    st.markdown("Selecciona un ejemplo para cargar automáticamente:")
-    
-    selected_example = st.selectbox(
-        "Algoritmo:",
-        options=[""] + list(EXAMPLES.keys()),
-        format_func=lambda x: "-- Seleccionar --" if x == "" else x
-    )
-    
-    if selected_example and selected_example in EXAMPLES:
-        if st.button("📥 Cargar Ejemplo", use_container_width=True):
-            st.session_state['code_input'] = EXAMPLES[selected_example]
-            st.rerun()
-    
-    st.divider()
-    
-    st.markdown("### ℹ️ Sintaxis")
-    with st.expander("📖 Ver Guía Rápida"):
-        st.markdown("""
-**Ciclos:**
-```
-for i ← 1 to n do
-while (condición) do
-repeat ... until (condición)
-```
-
-**Condicionales:**
-```
-if (condición) then
-begin
-    ...
-end
-else
-begin
-    ...
-end
-```
-
-**Recursión:**
-```
-call NombreProcedimiento(args)
-return expresión
-```
-
-**Operadores:**
-- Asignación: `←`
-- Comparación: `<`, `>`, `≤`, `≥`, `=`, `≠`
-- Aritméticos: `+`, `-`, `*`, `/`, `mod`, `div`, `^`
-- Lógicos: `and`, `or`, `not`
-""")
-
-
 # ============================================================================
 # MAIN: ENTRADA DE CÓDIGO
 # ============================================================================
