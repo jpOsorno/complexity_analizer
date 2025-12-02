@@ -7,3 +7,4 @@ graphviz
 pytest
 black
 ruff
+requests  

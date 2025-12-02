@@ -17,8 +17,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.parser.parser import parse, ParseError
 from src.analyzer.unified_analyzer import analyze_complexity_unified
 from src.visualization.components import (
-    display_procedure_analysis
+    display_procedure_analysis,
+    display_llm_comparison,  # NUEVO
+    export_results_json
 )
+
+# NUEVO: Importar sistema LLM
+try:
+    from src.llm.unified_analyzer_llm import analyze_with_llm
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
 
 
 # ============================================================================
@@ -34,7 +43,7 @@ st.set_page_config(
 
 
 # ============================================================================
-# EJEMPLOS PRECARGADOS
+# EJEMPLOS PRECARGADOS (sin cambios)
 # ============================================================================
 
 EXAMPLES = {
@@ -156,13 +165,122 @@ Soporta algoritmos **iterativos**, **recursivos** e **híbridos**.
 
 st.divider()
 
+
 # ============================================================================
-# MAIN: ENTRADA DE CÓDIGO
+# SIDEBAR: EJEMPLOS + CONFIGURACIÓN LLM
+# ============================================================================
+
+with st.sidebar:
+    st.header("📚 Ejemplos")
+    st.markdown("Selecciona un ejemplo para cargar automáticamente:")
+    
+    selected_example = st.selectbox(
+        "Algoritmo:",
+        options=[""] + list(EXAMPLES.keys()),
+        format_func=lambda x: "-- Seleccionar --" if x == "" else x
+    )
+    
+    if selected_example and selected_example in EXAMPLES:
+        if st.button("📥 Cargar Ejemplo", use_container_width=True):
+            st.session_state['code_input'] = EXAMPLES[selected_example]
+            st.rerun()
+    
+    st.divider()
+    
+    # ========================================================================
+    # NUEVO: CONFIGURACIÓN LLM
+    # ========================================================================
+    
+    st.header("🤖 Validación con IA")
+    
+    if LLM_AVAILABLE:
+        enable_llm = st.toggle(
+            "Habilitar validación con LLM",
+            value=False,
+            help="Compara tu análisis con Llama 3.3 70B (Groq API)"
+        )
+        
+        if enable_llm:
+            st.info("💡 **Validación con IA habilitada**")
+            
+            # Verificar si hay API key en variable de entorno
+            api_key_env = os.getenv('GROQ_API_KEY')
+            
+            if api_key_env:
+                st.success("✓ API Key detectada en variables de entorno")
+                api_key = api_key_env
+            else:
+                st.warning("⚠️ No se detectó GROQ_API_KEY en variables de entorno")
+                api_key = st.text_input(
+                    "API Key de Groq:",
+                    type="password",
+                    help="Obtén tu API key gratuita en https://console.groq.com/keys"
+                )
+                
+                if not api_key:
+                    st.error("❌ Ingresa tu API key para usar validación LLM")
+            
+            # Guardar en session state
+            if api_key:
+                st.session_state['groq_api_key'] = api_key
+                st.session_state['llm_enabled'] = True
+            else:
+                st.session_state['llm_enabled'] = False
+        else:
+            st.session_state['llm_enabled'] = False
+            st.info("ℹ️ Validación LLM deshabilitada")
+    else:
+        st.warning("⚠️ Módulo LLM no disponible")
+        st.session_state['llm_enabled'] = False
+    
+    st.divider()
+    
+    # ========================================================================
+    # SINTAXIS (sin cambios)
+    # ========================================================================
+    
+    st.markdown("### ℹ️ Sintaxis")
+    with st.expander("📖 Ver Guía Rápida"):
+        st.markdown("""
+**Ciclos:**
+```
+for i ← 1 to n do
+while (condición) do
+repeat ... until (condición)
+```
+
+**Condicionales:**
+```
+if (condición) then
+begin
+    ...
+end
+else
+begin
+    ...
+end
+```
+
+**Recursión:**
+```
+call NombreProcedimiento(args)
+return expresión
+```
+
+**Operadores:**
+- Asignación: `←`
+- Comparación: `<`, `>`, `≤`, `≥`, `=`, `≠`
+- Aritméticos: `+`, `-`, `*`, `/`, `mod`, `div`, `^`
+- Lógicos: `and`, `or`, `not`
+""")
+
+
+# ============================================================================
+# MAIN: ENTRADA DE CÓDIGO (sin cambios)
 # ============================================================================
 
 st.header("✏️ Entrada de Código")
 
-# Área de texto para el código
 code_input = st.text_area(
     "Escribe o pega tu pseudocódigo:",
     value=st.session_state.get('code_input', ''),
@@ -170,7 +288,6 @@ code_input = st.text_area(
     key='code_area'
 )
 
-# Botón de análisis
 col1, col2, col3 = st.columns([1, 1, 4])
 
 with col1:
@@ -185,31 +302,87 @@ if clear_button:
 
 
 # ============================================================================
-# ANÁLISIS Y RESULTADOS
+# ANÁLISIS Y RESULTADOS (MEJORADO CON LLM)
 # ============================================================================
 
 if analyze_button:
     if not code_input.strip():
         st.error("⚠️ Por favor, ingresa código pseudocódigo para analizar.")
     else:
+        # Verificar si LLM está habilitado
+        llm_enabled = st.session_state.get('llm_enabled', False)
+        
         with st.spinner("🔄 Analizando algoritmo..."):
             try:
-                # Paso 1: Parsear
-                ast = parse(code_input)
+                # ============================================================
+                # SIN LLM: Análisis normal
+                # ============================================================
                 
-                # Paso 2: Analizar con sistema unificado
-                results = analyze_complexity_unified(ast)
+                if not llm_enabled:
+                    # Paso 1: Parsear
+                    ast = parse(code_input)
+                    
+                    # Paso 2: Analizar
+                    results = analyze_complexity_unified(ast)
+                    
+                    # Paso 3: Mostrar
+                    st.success("✅ Análisis completado exitosamente")
+                    st.divider()
+                    st.header("📊 Resultados del Análisis")
+                    
+                    display_procedure_analysis(results)
+                    
+                    # Botón de descarga
+                    st.divider()
+                    col1, col2 = st.columns([1, 3])
+                    
+                    with col1:
+                        json_data = export_results_json(results)
+                        st.download_button(
+                            label="💾 Descargar JSON",
+                            data=json_data,
+                            file_name="analisis_complejidad.json",
+                            mime="application/json",
+                            use_container_width=True
+                        )
                 
-                # Paso 3: Mostrar resultados
-                st.success("✅ Análisis completado exitosamente")
+                # ============================================================
+                # CON LLM: Análisis + Validación
+                # ============================================================
                 
-                st.divider()
-                st.header("📊 Resultados del Análisis")
-                
-                # Mostrar resultados por procedimiento
-                display_procedure_analysis(results)
-                
-                col1, col2 = st.columns([1, 3])
+                else:
+                    # Verificar API key
+                    api_key = st.session_state.get('groq_api_key')
+                    
+                    if not api_key:
+                        st.error("❌ API key no configurada. Desactiva LLM o configura tu API key.")
+                    else:
+                        # Configurar API key como variable de entorno temporal
+                        os.environ['GROQ_API_KEY'] = api_key
+                        
+                        # Analizar con LLM
+                        results = analyze_with_llm(code_input, enable_llm=True)
+                        
+                        st.success("✅ Análisis completado (con validación IA)")
+                        
+                        st.divider()
+                        
+                        # Mostrar con comparación LLM
+                        display_llm_comparison(results)
+                        
+                        # Botón de descarga
+                        st.divider()
+                        col1, col2 = st.columns([1, 3])
+                        
+                        with col1:
+                            json_data = export_results_json(results)
+                            st.download_button(
+                                label="💾 Descargar JSON",
+                                data=json_data,
+                                file_name="analisis_con_llm.json",
+                                mime="application/json",
+                                use_container_width=True
+                            )
                 
             except ParseError as e:
                 st.error(f"❌ **Error de Sintaxis**")
@@ -219,14 +392,19 @@ if analyze_button:
             except Exception as e:
                 st.error(f"❌ **Error Inesperado**")
                 st.code(str(e), language=None)
-                st.warning("⚠️ Si el error persiste, contacta al desarrollador.")
+                
+                # Mostrar traceback en expander para debugging
+                with st.expander("🔍 Ver detalles del error"):
+                    import traceback
+                    st.code(traceback.format_exc())
 
 
 # ============================================================================
-# FOOTER
+# FOOTER (sin cambios)
 # ============================================================================
 
 st.divider()
+
 st.markdown("""
 <div style="text-align: center; color: #6b7280; font-size: 0.875rem;">
     <p>
