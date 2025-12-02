@@ -17,9 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.parser.parser import parse, ParseError
 from src.analyzer.unified_analyzer import analyze_complexity_unified
 from src.visualization.components import (
-    display_procedure_analysis,
-    display_llm_comparison,  # NUEVO
-    export_results_json
+    display_procedure_analysis,  # NUEVO
 )
 
 # NUEVO: Importar sistema LLM
@@ -330,21 +328,7 @@ if analyze_button:
                     st.divider()
                     st.header("📊 Resultados del Análisis")
                     
-                    display_procedure_analysis(results)
-                    
-                    # Botón de descarga
-                    st.divider()
-                    col1, col2 = st.columns([1, 3])
-                    
-                    with col1:
-                        json_data = export_results_json(results)
-                        st.download_button(
-                            label="💾 Descargar JSON",
-                            data=json_data,
-                            file_name="analisis_complejidad.json",
-                            mime="application/json",
-                            use_container_width=True
-                        )
+                    display_procedure_analysis(results)                    
                 
                 # ============================================================
                 # CON LLM: Análisis + Validación
@@ -367,23 +351,7 @@ if analyze_button:
                         
                         st.divider()
                         
-                        # Mostrar con comparación LLM
-                        display_llm_comparison(results)
-                        
-                        # Botón de descarga
-                        st.divider()
-                        col1, col2 = st.columns([1, 3])
-                        
-                        with col1:
-                            json_data = export_results_json(results)
-                            st.download_button(
-                                label="💾 Descargar JSON",
-                                data=json_data,
-                                file_name="analisis_con_llm.json",
-                                mime="application/json",
-                                use_container_width=True
-                            )
-                
+                                
             except ParseError as e:
                 st.error(f"❌ **Error de Sintaxis**")
                 st.code(str(e), language=None)

@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 import sympy as sp
 from sympy import symbols, sympify, simplify, log, ceiling, floor, expand, solve
 import re
+import math
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -340,35 +341,64 @@ class MasterTheorem:
     @staticmethod
     def solve(a: int, b: int, f_n: str, equation: str) -> RecurrenceSolution:
         """
-        Resuelve usando el Teorema Maestro.
+        Resuelve usando el Teorema Maestro con análisis detallado.
         """
         steps = []
-        steps.append(f"Ecuación identificada: T(n) = {a}T(n/{b}) + {f_n}")
+        steps.append(f"📋 Ecuación identificada: T(n) = {a}T(n/{b}) + {f_n}")
+        steps.append("")
         
-        # Calcular log_b(a)
+        # Paso 1: Identificar parámetros
+        steps.append("🔍 PASO 1: Identificar parámetros")
+        steps.append(f"  • a (número de subproblemas) = {a}")
+        steps.append(f"  • b (factor de división) = {b}")
+        steps.append(f"  • f(n) (costo no recursivo) = {f_n}")
+        steps.append("")
+        
+        # Paso 2: Calcular log_b(a)
         log_ba = sp.log(a, b)
         log_ba_float = float(log_ba.evalf())
         
-        steps.append(f"Parámetros: a={a}, b={b}, f(n)={f_n}")
-        steps.append(f"Calcular: log_{b}({a}) = {log_ba_float:.3f}")
+        steps.append("🔍 PASO 2: Calcular log_b(a)")
+        steps.append(f"  log_{b}({a}) = {log_ba_float:.2f}")
+        steps.append(f"  Esto significa: n^{log_ba_float:.2f} es el costo de las hojas del árbol")
+        steps.append("")
         
-        # Determinar el orden de f(n)
+        # Paso 3: Determinar orden de f(n)
         f_order = MasterTheorem._get_f_order(f_n)
-        steps.append(f"Orden de f(n): n^{f_order}")
+        steps.append("🔍 PASO 3: Determinar orden de f(n)")
+        steps.append(f"  f(n) = {f_n}")
+        steps.append(f"  Orden polinómico: n^{f_order}")
+        steps.append("")
         
-        # Aplicar casos del Teorema Maestro
+        # Paso 4: Comparar f(n) con n^log_b(a)
         epsilon = 0.1
+        steps.append("🔍 PASO 4: Aplicar Teorema Maestro")
+        steps.append(f"  Comparar f(n) = n^{f_order} con n^{log_ba_float:.2f}")
+        steps.append("")
         
-        # Caso 1: f(n) = O(n^(log_b(a) - ε))
+        # CASO 1: f(n) < n^log_b(a)
         if f_order < log_ba_float - epsilon:
-            steps.append(f"Caso 1 del Teorema Maestro: f(n) < n^{log_ba_float:.3f}")
-            steps.append(f"Conclusión: T(n) = Θ(n^{log_ba_float:.3f})")
+            steps.append("✅ CASO 1 del Teorema Maestro")
+            steps.append(f"  f(n) = O(n^{f_order}) < O(n^{log_ba_float:.2f})")
+            steps.append(f"  Las hojas dominan el costo")
+            steps.append("")
+            steps.append("📐 Fórmula: T(n) = Θ(n^log_b(a))")
+            steps.append(f"  T(n) = Θ(n^{log_ba_float:.2f})")
+            steps.append("")
+            
+            # Explicación intuitiva
+            steps.append("💡 Explicación intuitiva:")
+            steps.append(f"  • El árbol tiene altura log_{b}(n)")
+            steps.append(f"  • Cada nivel tiene más nodos que el anterior (factor {a})")
+            steps.append(f"  • El último nivel tiene a^log_b(n) = n^log_b(a) nodos")
+            steps.append(f"  • El costo está dominado por las hojas")
             
             complexity = MasterTheorem._format_complexity(log_ba_float)
             complexity_class = MasterTheorem._classify_complexity(log_ba_float)
-            
-            # Calcular cota fuerte
             tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
+            
+            # Agregar visualización del árbol
+            tree_analysis = MasterTheorem._generate_tree_description(a, b, f_n, log_ba_float, case=1)
             
             return RecurrenceSolution(
                 original_equation=equation,
@@ -380,13 +410,26 @@ class MasterTheorem:
                 is_tight=True,
                 recurrence_type="divide-conquer",
                 steps=steps,
-                tight_bounds=tight_bounds
+                tight_bounds=tight_bounds,
+                tree_analysis=tree_analysis
             )
         
-        # Caso 2: f(n) = Θ(n^log_b(a))
+        # CASO 2: f(n) ≈ n^log_b(a)
         elif abs(f_order - log_ba_float) < epsilon:
-            steps.append(f"Caso 2 del Teorema Maestro: f(n) ≈ n^{log_ba_float:.3f}")
-            steps.append(f"Conclusión: T(n) = Θ(n^{log_ba_float:.3f} × log(n))")
+            steps.append("✅ CASO 2 del Teorema Maestro")
+            steps.append(f"  f(n) = Θ(n^{f_order}) ≈ Θ(n^{log_ba_float:.2f})")
+            steps.append(f"  Todos los niveles contribuyen igual")
+            steps.append("")
+            steps.append("📐 Fórmula: T(n) = Θ(n^log_b(a) × log(n))")
+            steps.append(f"  T(n) = Θ(n^{log_ba_float:.2f} × log(n))")
+            steps.append("")
+            
+            # Explicación intuitiva
+            steps.append("💡 Explicación intuitiva:")
+            steps.append(f"  • El árbol tiene altura log_{b}(n) niveles")
+            steps.append(f"  • Cada nivel tiene costo Θ(n^{log_ba_float:.2f})")
+            steps.append(f"  • Total: log(n) niveles × n^{log_ba_float:.2f} por nivel")
+            steps.append(f"  • Resultado: Θ(n^{log_ba_float:.2f} × log(n))")
             
             if abs(log_ba_float - 1.0) < 0.01:
                 complexity = "n×log(n)"
@@ -394,10 +437,10 @@ class MasterTheorem:
             else:
                 base_complexity = MasterTheorem._format_complexity(log_ba_float)
                 complexity = f"{base_complexity}×log(n)"
-                complexity_class = f"polynomial with log factor"
+                complexity_class = "polynomial with log factor"
             
-            # Calcular cota fuerte
             tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
+            tree_analysis = MasterTheorem._generate_tree_description(a, b, f_n, log_ba_float, case=2)
             
             return RecurrenceSolution(
                 original_equation=equation,
@@ -409,19 +452,36 @@ class MasterTheorem:
                 is_tight=True,
                 recurrence_type="divide-conquer",
                 steps=steps,
-                tight_bounds=tight_bounds
+                tight_bounds=tight_bounds,
+                tree_analysis=tree_analysis
             )
         
-        # Caso 3: f(n) = Ω(n^(log_b(a) + ε))
+        # CASO 3: f(n) > n^log_b(a)
         else:
-            steps.append(f"Caso 3 del Teorema Maestro: f(n) > n^{log_ba_float:.3f}")
-            steps.append(f"Conclusión: T(n) = Θ(f(n))")
+            steps.append("✅ CASO 3 del Teorema Maestro")
+            steps.append(f"  f(n) = Θ(n^{f_order}) > Θ(n^{log_ba_float:.2f})")
+            steps.append(f"  La raíz domina el costo")
+            steps.append("")
+            steps.append("📐 Fórmula: T(n) = Θ(f(n))")
+            steps.append(f"  T(n) = Θ(f(n)) = {f_n}")
+            steps.append("")
+            
+            # Verificar regularidad
+            steps.append("🔍 Verificar condición de regularidad:")
+            steps.append(f"  a × f(n/{b}) ≤ c × f(n) para alguna constante c < 1")
+            steps.append("  ✓ Se asume que se cumple para este caso")
+            steps.append("")
+            
+            # Explicación intuitiva
+            steps.append("💡 Explicación intuitiva:")
+            steps.append(f"  • El costo decrece geométricamente al bajar niveles")
+            steps.append(f"  • La raíz (nivel 0) tiene el mayor costo")
+            steps.append(f"  • El costo total es dominado por f(n)")
             
             complexity = MasterTheorem._extract_complexity_from_f(f_n)
             complexity_class = MasterTheorem._classify_from_string(complexity)
-            
-            # Calcular cota fuerte
             tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
+            tree_analysis = MasterTheorem._generate_tree_description(a, b, f_n, log_ba_float, case=3)
             
             return RecurrenceSolution(
                 original_equation=equation,
@@ -433,9 +493,59 @@ class MasterTheorem:
                 is_tight=True,
                 recurrence_type="divide-conquer",
                 steps=steps,
-                tight_bounds=tight_bounds
+                tight_bounds=tight_bounds,
+                tree_analysis=tree_analysis
             )
     
+
+    @staticmethod
+    def _generate_tree_description(a: int, b: int, f_n: str, log_ba: float, case: int) -> str:
+        """
+        Genera descripción textual del árbol de recursión.
+        
+        Args:
+            a: Número de subproblemas
+            b: Factor de división
+            f_n: Costo no recursivo
+            log_ba: log_b(a)
+            case: Caso del teorema (1, 2, o 3)
+            
+        Returns:
+            String con descripción del árbol
+        """
+        description = "🌳 ESTRUCTURA DEL ÁRBOL DE RECURSIÓN:\n\n"
+        
+        description += f"📊 Propiedades:\n"
+        description += f"  • Altura: log_{b}(n) niveles\n"
+        description += f"  • Ramificación: {a} hijos por nodo\n"
+        description += f"  • Nodos en nivel i: {a}^i\n"
+        description += f"  • Total de nodos: ({a}^(log_{b}(n)+1) - 1) / ({a}-1) ≈ O(n^{log_ba:.2f})\n\n"
+        
+        description += f"📈 Costo por nivel:\n"
+        description += f"  • Nivel 0 (raíz): f(n) = {f_n}\n"
+        description += f"  • Nivel 1: {a} × f(n/{b})\n"
+        description += f"  • Nivel 2: {a}² × f(n/{b}²)\n"
+        description += f"  • Nivel i: {a}^i × f(n/{b}^i)\n"
+        description += f"  • Nivel log_{b}(n): {a}^log_{b}(n) × O(1) = n^{log_ba:.2f}\n\n"
+        
+        if case == 1:
+            description += "🎯 CASO 1: Las hojas dominan\n"
+            description += f"  • El costo crece exponencialmente hacia las hojas\n"
+            description += f"  • El último nivel tiene n^{log_ba:.2f} nodos\n"
+            description += f"  • Complejidad = Θ(n^{log_ba:.2f})\n"
+        elif case == 2:
+            description += "🎯 CASO 2: Todos los niveles contribuyen igual\n"
+            description += f"  • Cada nivel tiene costo Θ(n^{log_ba:.2f})\n"
+            description += f"  • Hay log_{b}(n) niveles\n"
+            description += f"  • Complejidad = Θ(n^{log_ba:.2f} × log(n))\n"
+        else:  # case == 3
+            description += "🎯 CASO 3: La raíz domina\n"
+            description += f"  • El costo decrece al bajar niveles\n"
+            description += f"  • La raíz tiene el mayor costo: {f_n}\n"
+            description += f"  • Complejidad = Θ(f(n))\n"
+
+        return description
+
     @staticmethod
     def _get_f_order(f_n: str) -> float:
         """Determina el orden de f(n)"""
@@ -545,41 +655,104 @@ class IterationMethod:
     @staticmethod
     def solve(k: int, f_n: str, equation: str) -> RecurrenceSolution:
         """
-        Resuelve T(n) = T(n-k) + f(n) por iteración.
+        Resuelve T(n) = T(n-k) + f(n) con análisis paso a paso detallado.
         """
         steps = []
-        steps.append(f"Ecuación identificada: T(n) = T(n-{k}) + {f_n}")
-        steps.append(f"Método: Iteración (expansión)")
+        steps.append(f"📋 Ecuación identificada: T(n) = T(n-{k}) + {f_n}")
+        steps.append(f"📐 Método: Iteración (expansión sucesiva)")
+        steps.append("")
         
         # Determinar el costo de f(n)
         f_cost = IterationMethod._extract_cost(f_n)
         
-        # Expansión iterativa
-        steps.append("\nExpansión:")
+        # PASO 1: Primera expansión
+        steps.append("🔍 PASO 1: Primera expansión")
         steps.append(f"  T(n) = T(n-{k}) + {f_cost}")
-        steps.append(f"       = [T(n-{2*k}) + {f_cost}] + {f_cost} = T(n-{2*k}) + 2×{f_cost}")
-        steps.append(f"       = [T(n-{3*k}) + {f_cost}] + 2×{f_cost} = T(n-{3*k}) + 3×{f_cost}")
-        steps.append(f"       = ...")
-        steps.append(f"       = T(0) + (n/{k})×{f_cost}")
+        steps.append(f"  Sustituir T(n-{k}):")
+        steps.append(f"  T(n) = [T(n-{2*k}) + {f_cost}] + {f_cost}")
+        steps.append(f"       = T(n-{2*k}) + 2×{f_cost}")
+        steps.append("")
         
-        # Calcular complejidad
-        if f_cost == "c" or f_cost == "1":
+        # PASO 2: Segunda expansión
+        steps.append("🔍 PASO 2: Segunda expansión")
+        steps.append(f"  T(n) = T(n-{2*k}) + 2×{f_cost}")
+        steps.append(f"  Sustituir T(n-{2*k}):")
+        steps.append(f"  T(n) = [T(n-{3*k}) + {f_cost}] + 2×{f_cost}")
+        steps.append(f"       = T(n-{3*k}) + 3×{f_cost}")
+        steps.append("")
+        
+        # PASO 3: Tercera expansión
+        steps.append("🔍 PASO 3: Tercera expansión")
+        steps.append(f"  T(n) = T(n-{3*k}) + 3×{f_cost}")
+        steps.append(f"  Sustituir T(n-{3*k}):")
+        steps.append(f"  T(n) = [T(n-{4*k}) + {f_cost}] + 3×{f_cost}")
+        steps.append(f"       = T(n-{4*k}) + 4×{f_cost}")
+        steps.append("")
+        
+        # PASO 4: Patrón general
+        steps.append("🔍 PASO 4: Identificar patrón")
+        steps.append(f"  Después de i expansiones:")
+        steps.append(f"  T(n) = T(n-{k}×i) + i×{f_cost}")
+        steps.append("")
+        
+        # PASO 5: Caso base
+        steps.append("🔍 PASO 5: Alcanzar el caso base")
+        steps.append(f"  Necesitamos que n - {k}×i = 0 (o alguna constante)")
+        steps.append(f"  Resolver para i:")
+        steps.append(f"  {k}×i = n")
+        steps.append(f"  i = n/{k}")
+        steps.append("")
+        steps.append(f"  Sustituir i = n/{k}:")
+        steps.append(f"  T(n) = T(0) + (n/{k})×{f_cost}")
+        steps.append("")
+        
+        # PASO 6: Simplificar según f(n)
+        steps.append("🔍 PASO 6: Simplificar")
+        
+        if f_cost in ["c", "1"]:
             # T(n) = T(0) + (n/k) × c = O(n)
+            steps.append(f"  T(n) = T(0) + (n/{k})×c")
+            steps.append(f"  T(n) = Θ(1) + Θ(n/{k})")
+            steps.append(f"  T(n) = Θ(n)")
+            steps.append("")
+            steps.append("💡 Explicación:")
+            steps.append(f"  • Hacemos n/{k} iteraciones")
+            steps.append(f"  • Cada iteración cuesta O(1)")
+            steps.append(f"  • Total: (n/{k}) × O(1) = O(n)")
+            
             complexity = "n"
             complexity_class = "linear"
-            steps.append(f"\nSimplificar: T(n) = T(0) + (n/{k})×c = Θ(n)")
-            tight_bounds = f"c₁n ≤ T(n) ≤ c₂n para constantes c₁, c₂ > 0"
+            exact = f"T(n) = T(0) + (n/{k})×c"
+            
         elif f_cost == "n":
             # T(n) = T(0) + (n/k) × n = O(n²)
+            steps.append(f"  T(n) = T(0) + (n/{k})×n")
+            steps.append(f"  T(n) = Θ(1) + Θ(n²/{k})")
+            steps.append(f"  T(n) = Θ(n²)")
+            steps.append("")
+            steps.append("💡 Explicación:")
+            steps.append(f"  • Hacemos n/{k} iteraciones")
+            steps.append(f"  • Cada iteración cuesta O(n)")
+            steps.append(f"  • Total: (n/{k}) × O(n) = O(n²)")
+            
             complexity = "n²"
             complexity_class = "quadratic"
-            steps.append(f"\nSimplificar: T(n) = T(0) + (n/{k})×n = Θ(n²)")
-            tight_bounds = f"c₁n² ≤ T(n) ≤ c₂n² para constantes c₁, c₂ > 0"
+            exact = f"T(n) = T(0) + (n/{k})×n"
+            
         else:
             complexity = "n"
             complexity_class = "linear"
-            steps.append(f"\nSimplificar: T(n) = Θ(n)")
-            tight_bounds = f"c₁n ≤ T(n) ≤ c₂n para constantes c₁, c₂ > 0"
+            exact = f"T(n) = T(0) + (n/{k})×{f_cost}"
+            steps.append(f"  T(n) = {exact}")
+            steps.append(f"  T(n) = Θ(n)")
+        
+        # Generar tabla de expansión
+        expansion_table = IterationMethod._generate_expansion_table(k, f_cost, 6)
+        steps.append("")
+        steps.append("📊 TABLA DE EXPANSIÓN:")
+        steps.extend(expansion_table)
+        
+        tight_bounds = MasterTheorem._calculate_tight_bounds(complexity)
         
         return RecurrenceSolution(
             original_equation=equation,
@@ -591,9 +764,53 @@ class IterationMethod:
             is_tight=True,
             recurrence_type="subtract-conquer",
             steps=steps,
-            exact_solution=f"T(n) = T(0) + (n/{k})×{f_cost}",
-            tight_bounds=tight_bounds
+            exact_solution=exact,
+            tight_bounds=tight_bounds,
+            tree_analysis=IterationMethod._generate_visual_description(k, f_cost)
         )
+    
+    @staticmethod
+    def _generate_expansion_table(k: int, f_cost: str, num_rows: int = 6) -> List[str]:
+        """
+        Genera tabla de expansión iterativa.
+        
+        Args:
+            k: Reducción por paso
+            f_cost: Costo de f(n)
+            num_rows: Número de filas
+            
+        Returns:
+            Lista de strings con la tabla
+        """
+        table = []
+        table.append("  ╔════════╦═══════════════════╦═════════════════╗")
+        table.append("  ║   i    ║   Tamaño          ║   Costo Acum.   ║")
+        table.append("  ╠════════╬═══════════════════╬═════════════════╣")
+        
+        for i in range(num_rows):
+            size = f"n-{k*i}" if i > 0 else "n"
+            cost = f"{i}×{f_cost}" if i > 0 else "0"
+            table.append(f"  ║   {i:<4} ║   {size:<15} ║   {cost:<13} ║")
+        
+        table.append("  ║   ...  ║   ...             ║   ...           ║")
+        table.append(f"  ║  n/{k:<2} ║   0               ║   (n/{k})×{f_cost:<6} ║")
+        table.append("  ╚════════╩═══════════════════╩═════════════════╝")
+        
+        return table
+    
+    @staticmethod
+    def _generate_visual_description(k: int, f_cost: str) -> str:
+        """Genera descripción visual del proceso de iteración"""
+        desc = "🔄 VISUALIZACIÓN DEL PROCESO ITERATIVO:\n\n"
+        desc += "📉 Secuencia de llamadas:\n"
+        desc += f"  T(n) → T(n-{k}) → T(n-{2*k}) → T(n-{3*k}) → ... → T(0)\n\n"
+        desc += "📊 Estructura:\n"
+        desc += "  • Es una cadena lineal (no ramifica)\n"
+        desc += f"  • Profundidad: n/{k} niveles\n"
+        desc += f"  • Costo por nivel: {f_cost}\n"
+        desc += f"  • Acumulación: suma de costos = (n/{k}) × {f_cost}\n"
+        
+        return desc
     
     @staticmethod
     def _extract_cost(f_n: str) -> str:
@@ -657,54 +874,173 @@ class CharacteristicEquation:
     @staticmethod
     def solve_fibonacci(k_values: List[int], f_n: str, equation: str) -> RecurrenceSolution:
         """
-        Resuelve T(n) = T(n-1) + T(n-2) + O(1) (Fibonacci)
+        Resuelve T(n) = T(n-1) + T(n-2) + O(1) (Fibonacci) con análisis detallado.
         """
         steps = []
-        steps.append("Ecuación identificada: T(n) = T(n-1) + T(n-2) + O(1)")
-        steps.append("Tipo: Fibonacci (resta y serás vencido)")
-        steps.append("\nMétodo: Ecuación Característica")
+        steps.append("📋 Ecuación identificada: T(n) = T(n-1) + T(n-2) + O(1)")
+        steps.append("📐 Método: Ecuación Característica")
+        steps.append("🎯 Tipo: Fibonacci (recurrencia lineal de segundo orden)")
+        steps.append("")
         
-        # Ecuación característica: r² - r - 1 = 0
-        steps.append("\nEcuación característica: r² - r - 1 = 0")
+        # PASO 1: Ecuación característica
+        steps.append("🔍 PASO 1: Formar la ecuación característica")
+        steps.append("  Para T(n) = T(n-1) + T(n-2), la ecuación característica es:")
+        steps.append("  r² = r + 1")
+        steps.append("  Reordenando:")
+        steps.append("  r² - r - 1 = 0")
+        steps.append("")
         
-        # Resolver con fórmula cuadrática
+        # PASO 2: Resolver con fórmula cuadrática
+        steps.append("🔍 PASO 2: Resolver usando fórmula cuadrática")
+        steps.append("  r² - r - 1 = 0")
+        steps.append("  a=1, b=-1, c=-1")
+        steps.append("")
+        steps.append("  Fórmula: r = (-b ± √(b²-4ac)) / 2a")
+        steps.append("  r = (1 ± √(1+4)) / 2")
+        steps.append("  r = (1 ± √5) / 2")
+        steps.append("")
+        
+        # Calcular raíces con SymPy
         r = symbols('r')
         char_eq = r**2 - r - 1
         roots = solve(char_eq, r)
         
-        steps.append(f"Raíces: r₁ = {roots[0]}, r₂ = {roots[1]}")
+        r1 = roots[0]  # (1 + sqrt(5))/2 = phi
+        r2 = roots[1]  # (1 - sqrt(5))/2
         
-        # Raíz dominante (phi)
-        phi = (1 + sp.sqrt(5)) / 2
-        phi_val = float(phi.evalf())
+        r1_val = float(r1.evalf())
+        r2_val = float(r2.evalf())
         
-        steps.append(f"\nRaíz dominante: φ = (1+√5)/2 ≈ {phi_val:.3f}")
-        steps.append(f"Solución: T(n) = Θ(φⁿ) = Θ({phi_val:.3f}ⁿ)")
+        steps.append(f"  r₁ = (1 + √5) / 2 ≈ {r1_val:.6f}  (φ, número áureo)")
+        steps.append(f"  r₂ = (1 - √5) / 2 ≈ {r2_val:.6f}")
+        steps.append("")
+        
+        # PASO 3: Solución general
+        steps.append("🔍 PASO 3: Formar solución general")
+        steps.append("  Para ecuaciones lineales homogéneas:")
+        steps.append("  T(n) = c₁×r₁ⁿ + c₂×r₂ⁿ")
+        steps.append("")
+        steps.append(f"  T(n) = c₁×φⁿ + c₂×({r2_val:.3f})ⁿ")
+        steps.append("")
+        
+        # PASO 4: Análisis asintótico
+        steps.append("🔍 PASO 4: Análisis asintótico")
+        steps.append(f"  Cuando n → ∞:")
+        steps.append(f"  • φⁿ crece exponencialmente ({r1_val:.3f}ⁿ)")
+        steps.append(f"  • ({r2_val:.3f})ⁿ decrece exponencialmente (|{r2_val:.3f}| < 1)")
+        steps.append("")
+        steps.append("  Por lo tanto, el término dominante es φⁿ:")
+        steps.append("  T(n) = Θ(φⁿ)")
+        steps.append("")
+        
+        # PASO 5: Cálculo numérico
+        steps.append("🔍 PASO 5: Valores específicos de Fibonacci")
+        steps.append("  Usando la fórmula de Binet:")
+        steps.append(f"  F(n) = (φⁿ - ψⁿ) / √5")
+        steps.append(f"  donde φ = {r1_val:.6f} y ψ = {r2_val:.6f}")
+        steps.append("")
+        
+        fib_table = CharacteristicEquation._generate_fibonacci_table(r1_val, 10)
+        steps.append("📊 TABLA: Crecimiento de Fibonacci")
+        steps.extend(fib_table)
+        
+        # Información adicional
+        steps.append("")
+        steps.append("💡 Propiedades del número áureo (φ):")
+        steps.append("  • φ ≈ 1.618033988749895...")
+        steps.append("  • φ² = φ + 1")
+        steps.append("  • φⁿ⁺¹ = φⁿ × φ ≈ φⁿ × 1.618")
+        steps.append("  • Fibonacci(n) ≈ φⁿ/√5 para n grande")
         
         return RecurrenceSolution(
             original_equation=equation,
             method_used="characteristic_equation",
-            big_o="O(φⁿ) ≈ O(1.618ⁿ)",
+            big_o="O(φⁿ)",
             big_omega="Ω(φⁿ)",
             big_theta="Θ(φⁿ)",
             complexity_class="exponential",
             is_tight=True,
             recurrence_type="subtract-conquered",
             steps=steps,
-            exact_solution="T(n) = Θ(φⁿ) donde φ = (1+√5)/2"
+            exact_solution="T(n) = Θ(φⁿ) donde φ = (1+√5)/2",
+            tree_analysis=CharacteristicEquation._generate_fibonacci_tree_description()
         )
     
     @staticmethod
-    def solve_general(coefficients: Dict[int, int], f_n: str, equation: str) -> RecurrenceSolution:
-        """
-        Resuelve recurrencias lineales generales.
-        """
-        steps = []
-        steps.append(f"Ecuación identificada: {equation}")
-        steps.append("Método: Ecuación Característica (general)")
+    def _generate_fibonacci_table(phi: float, num_rows: int) -> List[str]:
+        """Genera tabla comparativa de Fibonacci"""
+        table = []
+        table.append("  ╔═════╦════════════════╦═════════════════╗")
+        table.append("  ║  n  ║   Fib(n)       ║   φⁿ/√5         ║")
+        table.append("  ╠═════╬════════════════╬═════════════════╣")
         
-        # Por simplicidad, manejar casos conocidos
-        # TODO: Implementar solver general con SymPy
+        sqrt5 = math.sqrt(5)
+        
+        # Calcular Fibonacci real
+        fib = [0, 1]
+        for i in range(2, num_rows + 1):
+            fib.append(fib[-1] + fib[-2])
+        
+        for n in range(num_rows + 1):
+            fib_n = fib[n]
+            phi_n = (phi**n) / sqrt5
+            table.append(f"  ║  {n:<2} ║   {fib_n:<12} ║   {phi_n:<13.2f} ║")
+        
+        table.append("  ╚═════╩════════════════╩═════════════════╝")
+        table.append("")
+        table.append("  Nota: A medida que n crece, Fib(n) se aproxima a φⁿ/√5")
+        
+        return table
+    
+    @staticmethod
+    def _generate_fibonacci_tree_description() -> str:
+        """Genera descripción del árbol de Fibonacci"""
+        desc = "🌳 ESTRUCTURA DEL ÁRBOL DE FIBONACCI:\n\n"
+        desc += "📊 Propiedades:\n"
+        desc += "  • Árbol binario completo\n"
+        desc += "  • Altura: n niveles\n"
+        desc += "  • Número de nodos: F(n+1) - 1 ≈ φⁿ⁺¹/√5\n"
+        desc += "  • Hojas: aproximadamente φⁿ/2\n\n"
+        desc += "🔄 Patrón de llamadas:\n"
+        desc += "  F(n) llama a:\n"
+        desc += "    ├─ F(n-1) que llama a:\n"
+        desc += "    │    ├─ F(n-2)\n"
+        desc += "    │    └─ F(n-3)\n"
+        desc += "    └─ F(n-2) que llama a:\n"
+        desc += "         ├─ F(n-3)\n"
+        desc += "         └─ F(n-4)\n\n"
+        desc += "⚠️ PROBLEMA: Muchas llamadas duplicadas!\n"
+        desc += "  F(n-2) se calcula dos veces\n"
+        desc += "  F(n-3) se calcula tres veces\n"
+        desc += "  Esto causa la complejidad exponencial\n"
+        
+        return desc
+    
+    @staticmethod
+    def solve_general(coefficients: Dict[int, int], f_n: str, equation: str) -> RecurrenceSolution:
+        """Resuelve recurrencias lineales generales (placeholder mejorado)"""
+        steps = []
+        steps.append(f"📋 Ecuación identificada: {equation}")
+        steps.append("📐 Método: Ecuación Característica (general)")
+        steps.append("")
+        steps.append("⚠️  NOTA: Esta es una recurrencia lineal general.")
+        steps.append("   El análisis detallado requiere resolver la ecuación característica:")
+        steps.append("")
+        
+        # Construir ecuación característica
+        char_eq_str = "r^n = "
+        terms = []
+        for offset, coef in sorted(coefficients.items()):
+            terms.append(f"{coef}×r^(n-{offset})")
+        char_eq_str += " + ".join(terms)
+        
+        steps.append(f"  Ecuación característica: {char_eq_str}")
+        steps.append("")
+        steps.append("💡 Para resolver manualmente:")
+        steps.append("  1. Dividir por r^(n-k) para obtener polinomio en r")
+        steps.append("  2. Encontrar raíces del polinomio")
+        steps.append("  3. Solución: T(n) = Σ(cᵢ × rᵢⁿ) donde rᵢ son las raíces")
+        steps.append("  4. Complejidad dominada por la raíz de mayor magnitud")
         
         return RecurrenceSolution(
             original_equation=equation,
@@ -724,17 +1060,11 @@ class CharacteristicEquation:
 # ============================================================================
 
 class RecursionTree:
-    """
-    Método del Árbol de Recursión.
-    
-    Construye conceptualmente el árbol y suma los costos.
-    """
+    """Método del Árbol de Recursión mejorado"""
     
     @staticmethod
     def analyze(recurrence_type: str, params: Dict, equation: str) -> RecurrenceSolution:
-        """
-        Analiza usando árbol de recursión.
-        """
+        """Analiza usando árbol de recursión con detalles"""
         if recurrence_type == "subtract-conquered":
             return RecursionTree._analyze_fibonacci(params, equation)
         elif recurrence_type == "subtract-conquer":
@@ -746,16 +1076,49 @@ class RecursionTree:
     
     @staticmethod
     def _analyze_fibonacci(params: Dict, equation: str) -> RecurrenceSolution:
-        """Árbol para Fibonacci"""
+        """Árbol para Fibonacci con análisis detallado"""
         steps = []
-        steps.append("Patrón: Fibonacci (binario)")
-        steps.append("Nivel 0: 1 nodo → costo c")
-        steps.append("Nivel 1: 2 nodos → costo 2c")
-        steps.append("Nivel 2: 4 nodos → costo 4c")
-        steps.append("...")
-        steps.append("Nivel k: 2ᵏ nodos → costo 2ᵏ×c")
-        steps.append("Altura: n niveles")
-        steps.append("Total: Σ(2ᵏ×c) para k=0 to n = c×(2ⁿ⁺¹-1) = Θ(2ⁿ)")
+        steps.append("🌳 Método: Árbol de Recursión - Fibonacci")
+        steps.append("")
+        
+        steps.append("🔍 PASO 1: Estructura del árbol")
+        steps.append("  • Cada nodo tiene 2 hijos (binario)")
+        steps.append("  • Altura del árbol: n niveles")
+        steps.append("  • Ramificación: cada nodo genera 2 subproblemas")
+        steps.append("")
+        
+        steps.append("🔍 PASO 2: Análisis por nivel")
+        steps.append("  Nivel 0: 1 nodo → costo = 1×c = c")
+        steps.append("  Nivel 1: 2 nodos → costo = 2×c = 2c")
+        steps.append("  Nivel 2: 4 nodos → costo = 4×c = 4c")
+        steps.append("  Nivel 3: 8 nodos → costo = 8×c = 8c")
+        steps.append("  ...")
+        steps.append("  Nivel k: 2ᵏ nodos → costo = 2ᵏ×c")
+        steps.append("")
+        
+        steps.append("🔍 PASO 3: Suma de costos")
+        steps.append("  Total = Σ(2ᵏ×c) para k=0 hasta n")
+        steps.append("  Total = c × Σ(2ᵏ) para k=0 hasta n")
+        steps.append("  Total = c × (2⁰ + 2¹ + 2² + ... + 2ⁿ)")
+        steps.append("")
+        steps.append("  Usando la fórmula de suma geométrica:")
+        steps.append("  Σ(2ᵏ) = 2ⁿ⁺¹ - 1")
+        steps.append("")
+        steps.append("  Total = c × (2ⁿ⁺¹ - 1)")
+        steps.append("  Total = Θ(2ⁿ)")
+        steps.append("")
+        
+        steps.append("💡 Observaciones:")
+        steps.append("  • El número de nodos crece exponencialmente")
+        steps.append("  • Aproximadamente 2ⁿ hojas en el árbol")
+        steps.append("  • Cada hoja representa una operación base")
+        steps.append("  • Ineficiencia: muchos cálculos repetidos")
+        
+        # Tabla de nodos por nivel
+        node_table = RecursionTree._generate_node_table("binary", 10)
+        steps.append("")
+        steps.append("📊 TABLA: Nodos por nivel")
+        steps.extend(node_table)
         
         return RecurrenceSolution(
             original_equation=equation,
@@ -767,23 +1130,45 @@ class RecursionTree:
             is_tight=True,
             recurrence_type="subtract-conquered",
             steps=steps,
-            tree_analysis="Árbol binario de altura n, 2ⁿ hojas"
+            tree_analysis="Árbol binario de altura n, aproximadamente 2ⁿ hojas"
         )
     
     @staticmethod
     def _analyze_linear(params: Dict, equation: str) -> RecurrenceSolution:
-        """Árbol para recursión lineal"""
+        """Árbol para recursión lineal mejorado"""
         k = params.get("k", 1)
         f_n = params.get("f_n", "O(1)")
         
         steps = []
-        steps.append("Patrón: Recursión lineal")
-        steps.append("Nivel 0: T(n) → costo c")
-        steps.append(f"Nivel 1: T(n-{k}) → costo c")
-        steps.append("...")
-        steps.append(f"Nivel i: T(n-{k}×i) → costo c")
-        steps.append(f"Altura: n/{k} niveles")
-        steps.append(f"Total: (n/{k})×c = Θ(n)")
+        steps.append("🌳 Método: Árbol de Recursión - Lineal")
+        steps.append("")
+        
+        steps.append("🔍 PASO 1: Estructura del árbol")
+        steps.append("  • Cada nodo tiene 1 hijo (cadena lineal)")
+        steps.append(f"  • Altura del árbol: n/{k} niveles")
+        steps.append("  • No hay ramificación (degenerado)")
+        steps.append("")
+        
+        steps.append("🔍 PASO 2: Análisis por nivel")
+        steps.append(f"  Nivel 0: T(n) → costo = c")
+        steps.append(f"  Nivel 1: T(n-{k}) → costo = c")
+        steps.append(f"  Nivel 2: T(n-{2*k}) → costo = c")
+        steps.append(f"  Nivel 3: T(n-{3*k}) → costo = c")
+        steps.append("  ...")
+        steps.append(f"  Nivel i: T(n-{k}×i) → costo = c")
+        steps.append("")
+        
+        steps.append("🔍 PASO 3: Suma de costos")
+        steps.append(f"  Número de niveles = n/{k}")
+        steps.append(f"  Costo por nivel = c")
+        steps.append(f"  Total = (n/{k}) × c = Θ(n)")
+        steps.append("")
+        
+        steps.append("💡 Observaciones:")
+        steps.append("  • El árbol es degenerado (una línea)")
+        steps.append(f"  • Cada paso reduce el problema en {k}")
+        steps.append(f"  • Necesitamos n/{k} pasos para llegar al caso base")
+        steps.append("  • Complejidad lineal en n")
         
         return RecurrenceSolution(
             original_equation=equation,
@@ -795,27 +1180,43 @@ class RecursionTree:
             is_tight=True,
             recurrence_type="subtract-conquer",
             steps=steps,
-            tree_analysis=f"Árbol lineal de altura n/{k}"
+            tree_analysis=f"Árbol lineal (degenerado) de altura n/{k}"
         )
     
     @staticmethod
     def _analyze_divide_conquer(params: Dict, equation: str) -> RecurrenceSolution:
-        """Árbol para divide y vencerás"""
+        """Árbol para divide y vencerás mejorado"""
         a = params.get("a", 2)
         b = params.get("b", 2)
         f_n = params.get("f_n", "O(n)")
         
         steps = []
-        steps.append(f"Patrón: Divide y vencerás ({a} subproblemas de tamaño n/{b})")
-        steps.append(f"Nivel 0: 1 nodo → costo f(n)")
-        steps.append(f"Nivel 1: {a} nodos → costo {a}×f(n/{b})")
-        steps.append(f"Nivel 2: {a**2} nodos → costo {a**2}×f(n/{b**2})")
-        steps.append("...")
-        steps.append(f"Nivel k: {a}ᵏ nodos → costo aᵏ×f(n/bᵏ)")
-        steps.append(f"Altura: log_{b}(n) niveles")
-        steps.append(f"Total: Usar Teorema Maestro para análisis preciso")
+        steps.append("🌳 Método: Árbol de Recursión - Divide y Vencerás")
+        steps.append("")
         
-        # Usar Teorema Maestro para obtener resultado
+        steps.append("🔍 PASO 1: Estructura del árbol")
+        steps.append(f"  • Cada nodo tiene {a} hijos")
+        steps.append(f"  • Altura del árbol: log_{b}(n) niveles")
+        steps.append(f"  • Factor de ramificación: {a}")
+        steps.append("")
+        
+        steps.append("🔍 PASO 2: Análisis por nivel")
+        steps.append(f"  Nivel 0: 1 nodo de tamaño n → costo = f(n)")
+        steps.append(f"  Nivel 1: {a} nodos de tamaño n/{b} → costo = {a}×f(n/{b})")
+        steps.append(f"  Nivel 2: {a}² nodos de tamaño n/{b}² → costo = {a}²×f(n/{b}²)")
+        steps.append(f"  Nivel 3: {a}³ nodos de tamaño n/{b}³ → costo = {a}³×f(n/{b}³)")
+        steps.append("  ...")
+        steps.append(f"  Nivel k: {a}ᵏ nodos de tamaño n/{b}ᵏ → costo = {a}ᵏ×f(n/{b}ᵏ)")
+        steps.append("")
+        steps.append("🔍 PASO 3: Profundidad y hojas")
+        steps.append(f"  Altura = log_{b}(n)")
+        steps.append(f"  Número de hojas = {a}^log_{b}(n) = n^log_{b}({a})")
+        steps.append("")
+        
+        steps.append("🔍 PASO 4: Aplicar Teorema Maestro")
+        steps.append("  Para análisis preciso, usar Teorema Maestro")
+        
+        # Usar Master Theorem para obtener resultado
         master_result = MasterTheorem.solve(a, b, f_n, equation)
         
         return RecurrenceSolution(
@@ -828,12 +1229,35 @@ class RecursionTree:
             is_tight=True,
             recurrence_type="divide-conquer",
             steps=steps,
-            tree_analysis=f"Árbol de altura log_{b}(n) con {a} hijos por nodo"
+            tree_analysis=f"Árbol de altura log_{b}(n) con {a} hijos por nodo, {a}^log_{b}(n) hojas"
         )
-    
+
+    @staticmethod
+    def _generate_node_table(tree_type: str, max_level: int) -> List[str]:
+        """Genera tabla de nodos por nivel"""
+        table = []
+        table.append("  ╔═══════╦═══════════════╦══════════════════╗")
+        table.append("  ║ Nivel ║  Nodos        ║  Costo por nivel ║")
+        table.append("  ╠═══════╬═══════════════╬══════════════════╣")
+        
+        if tree_type == "binary":
+            for i in range(min(max_level, 10)):
+                nodes = 2**i
+                cost = f"{nodes}×c"
+                table.append(f"  ║   {i:<3} ║  {nodes:<12} ║  {cost:<15} ║")
+        
+        table.append("  ║  ...  ║  ...          ║  ...             ║")
+        
+        if tree_type == "binary":
+            table.append(f"  ║   n   ║  2ⁿ           ║  2ⁿ×c            ║")
+        
+        table.append("  ╚═══════╩═══════════════╩══════════════════╝")
+        
+        return table
+
     @staticmethod
     def _generic_analysis(equation: str) -> RecurrenceSolution:
-        """Análisis genérico"""
+        """Análisis genérico mejorado"""
         return RecurrenceSolution(
             original_equation=equation,
             method_used="recursion_tree_generic",
@@ -843,8 +1267,9 @@ class RecursionTree:
             complexity_class="unknown",
             is_tight=False,
             recurrence_type="unknown",
-            steps=["Análisis de árbol genérico - requiere análisis manual"],
-            tree_analysis="Estructura no estándar"
+            steps=["Análisis de árbol genérico - estructura no estándar",
+                "Se requiere análisis manual detallado"],
+            tree_analysis="Estructura no estándar - análisis manual requerido"
         )
 
 

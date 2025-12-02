@@ -8,3 +8,5 @@ pytest
 black
 ruff
 requests  
+plotly
+kaleido
