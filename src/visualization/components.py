@@ -537,8 +537,8 @@ def display_complexity_result(result, procedure_name: str):
         # TAB: PEOR CASO
         with tab_worst:
             st.markdown("#### Sumatoria / Ecuación")
-            if iterative_analysis.worst_case_summation:
-                st.code(iterative_analysis.worst_case_summation, language=None)
+            if iterative_analysis.global_worst_summation:
+                st.code(iterative_analysis.global_worst_summation, language=None)
             else:
                 st.info("No hay sumatorias (complejidad constante)")
             
@@ -548,10 +548,10 @@ def display_complexity_result(result, procedure_name: str):
                 st.markdown("**Complejidad:**")
                 st.error(iterative_analysis.worst_case)
             
-            with col_b:
-                st.markdown("**Estructura:**")
-                st.info(f"{len(iterative_analysis.loops)} ciclo(s), profundidad {iterative_analysis.max_nesting_depth}")
-            
+            if iterative_analysis.worst_case_tight_bounds:
+                        st.markdown("**Cotas Fuertes (Tight Bounds):**")
+                        st.latex(iterative_analysis.worst_case_tight_bounds.replace("≤", r"\leq").replace("₁", "_1").replace("₂", "_2"))       
+    
             with st.expander("🔎 Explicación detallada"):
                 if iterative_analysis.worst_case_explanation:
                     st.markdown("**Explicación:**")
@@ -564,8 +564,8 @@ def display_complexity_result(result, procedure_name: str):
         # TAB: MEJOR CASO
         with tab_best:
             st.markdown("#### Sumatoria / Ecuación")
-            if iterative_analysis.best_case_summation:
-                st.code(iterative_analysis.best_case_summation, language=None)
+            if iterative_analysis.global_best_summation:
+                st.code(iterative_analysis.global_best_summation, language=None)
             else:
                 st.info("No hay sumatorias (complejidad constante)")
             
@@ -575,13 +575,10 @@ def display_complexity_result(result, procedure_name: str):
                 st.markdown("**Complejidad:**")
                 st.success(iterative_analysis.best_case)
             
-            with col_b:
-                st.markdown("**Early Exit:**")
-                if iterative_analysis.has_early_exit:
-                    st.success("✓ Detectado")
-                else:
-                    st.info("No detectado")
-            
+            if iterative_analysis.best_case_tight_bounds:
+                        st.markdown("**Cotas Fuertes (Tight Bounds):**")
+                        st.latex(iterative_analysis.best_case_tight_bounds.replace("≤", r"\leq").replace("₁", "_1").replace("₂", "_2"))       
+    
             with st.expander("🔎 Explicación detallada"):
                 if iterative_analysis.best_case_explanation:
                     st.markdown("**Explicación:**")
@@ -593,8 +590,8 @@ def display_complexity_result(result, procedure_name: str):
         # TAB: CASO PROMEDIO
         with tab_avg:
             st.markdown("#### Sumatoria / Ecuación")
-            if iterative_analysis.average_case_summation:
-                st.code(iterative_analysis.average_case_summation, language=None)
+            if iterative_analysis.global_average_summation:
+                st.code(iterative_analysis.global_average_summation, language=None)
             else:
                 st.info("No hay sumatorias (complejidad constante)")
             
@@ -603,13 +600,11 @@ def display_complexity_result(result, procedure_name: str):
             with col_a:
                 st.markdown("**Complejidad:**")
                 st.warning(iterative_analysis.average_case)
-            
-            with col_b:
-                st.markdown("**Condicionales:**")
-                if iterative_analysis.has_conditionals:
-                    st.info("✓ Detectados")
-                else:
-                    st.info("No detectados")
+
+            if iterative_analysis.average_case_tight_bounds:
+                        st.markdown("**Cotas Fuertes (Tight Bounds):**")
+                        st.latex(iterative_analysis.average_case_tight_bounds.replace("≤", r"\leq").replace("₁", "_1").replace("₂", "_2"))       
+       
             
             with st.expander("🔎 Explicación detallada"):
                 if iterative_analysis.average_case_explanation:
