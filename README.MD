@@ -7,7 +7,6 @@ Características principales:
 
 - Análisis de complejidad (O / Ω / Θ) para procedimientos.
 - Detección de recursión y generación de ecuaciones de recurrencia.
-- Conteo de operaciones básicas (OPD) y desglose por tipo.
 - Visualizaciones interactivas con Streamlit.
 
 ## Requisitos
@@ -45,7 +44,7 @@ setx GROQ_API_KEY "tu_api_key_aqui"
 streamlit run ./app_complete.py
 ```
 
-La interfaz carga ejemplos desde la carpeta `examples/` y permite analizar o inspeccionar operaciones básicas (OPD) sin ejecutar el análisis completo.
+La interfaz carga ejemplos desde la carpeta `examples/`
 
 ## Uso rápido
 
