@@ -51,7 +51,6 @@ La interfaz carga ejemplos desde la carpeta `examples/` y permite analizar o ins
 
 - Pega o escribe tu pseudocódigo en el textarea.
 - Usa "Analizar" para ejecutar el análisis completo.
-- Usa "Operaciones" para ver un conteo rápido de operaciones básicas.
 
 ## Estructura de carpetas
 
