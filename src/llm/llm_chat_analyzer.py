@@ -123,6 +123,12 @@ Análisis estático disponible:
 Genera tu respuesta en formato JSON con esta estructura:
 
 {
+  "complexity_summary": {
+    "worst_case": "Complejidad del peor caso (ej: 'O(n²)')",
+    "best_case": "Complejidad del mejor caso (ej: 'O(n)')",
+    "average_case": "Complejidad del caso promedio (ej: 'O(n²)')",
+    "space_complexity": "Complejidad espacial (ej: 'O(1)')"
+  },
   "identification": "Identificación del algoritmo en 1-2 oraciones conversacionales (ej: '¡Veo que estás analizando un algoritmo de ordenamiento! Específicamente, esto es un Bubble Sort...')",
   "pattern": "Explicación del patrón algorítmico en lenguaje natural (ej: 'Este algoritmo usa un enfoque de comparación e intercambio. Básicamente, compara elementos adyacentes...')",
   "complexity_explanation": "Explicación conversacional de la complejidad (ej: 'En cuanto a eficiencia, este algoritmo tiene complejidad O(n²). ¿Qué significa esto? Bueno, si duplicas el tamaño de tu array...')",
@@ -150,6 +156,21 @@ Sé conversacional, amigable y educativo. Usa analogías cuando sea apropiado.
             )]
         
         data = response.parsed_json
+        
+        # Mensaje de resumen de complejidad (NUEVO - primero)
+        if data.get('complexity_summary'):
+            comp_sum = data['complexity_summary']
+            messages.append(ChatMessage(
+                text=f"""**Complejidades calculadas por Groq:**
+
+- 🔴 **Peor caso:** {comp_sum.get('worst_case', 'N/A')}
+- 🟢 **Mejor caso:** {comp_sum.get('best_case', 'N/A')}
+- 🟡 **Caso promedio:** {comp_sum.get('average_case', 'N/A')}
+- 💾 **Complejidad espacial:** {comp_sum.get('space_complexity', 'N/A')}
+""",
+                message_type='complexity_summary',
+                emoji='📊'
+            ))
         
         # Mensaje de identificación
         if data.get('identification'):
