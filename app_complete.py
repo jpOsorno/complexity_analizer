@@ -209,45 +209,6 @@ with st.sidebar:
         st.session_state['chat_enabled'] = False
     
     st.divider()
-    
-    # ========================================================================
-    # SINTAXIS
-    # ========================================================================
-    
-    st.markdown("### ℹ️ Sintaxis")
-    with st.expander("📖 Ver Guía Rápida"):
-        st.markdown("""
-**Ciclos:**
-```
-for i ← 1 to n do
-while (condición) do
-repeat ... until (condición)
-```
-
-**Condicionales:**
-```
-if (condición) then
-begin
-    ...
-end
-else
-begin
-    ...
-end
-```
-
-**Recursión:**
-```
-call NombreProcedimiento(args)
-return expresión
-```
-
-**Operadores:**
-- Asignación: `←`
-- Comparación: `<`, `>`, `≤`, `≥`, `=`, `≠`
-- Aritméticos: `+`, `-`, `*`, `/`, `mod`, `div`, `^`
-- Lógicos: `and`, `or`, `not`
-""")
 
 
 # ============================================================================
