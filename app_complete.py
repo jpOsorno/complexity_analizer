@@ -154,31 +154,31 @@ with st.sidebar:
             else:
                 st.warning("⚠️ No se detectó GROQ_API_KEY en variables de entorno")
             
-            # # Campo de input SIEMPRE visible
-            # api_key_input = st.text_input(
-            #     "API Key de Groq:",
-            #     value=api_key_env if api_key_env else "",
-            #     type="password",
-            #     help="Obtén tu API key gratuita en https://console.groq.com/keys",
-            #     placeholder="gsk_..."
-            # )
+            # Campo de input SIEMPRE visible
+            api_key_input = st.text_input(
+                "API Key de Groq:",
+                value=api_key_env if api_key_env else "",
+                type="password",
+                help="Obtén tu API key gratuita en https://console.groq.com/keys",
+                placeholder="gsk_..."
+            )
             
-            # # Usar la key ingresada o la del entorno
-            # api_key = api_key_input if api_key_input else api_key_env
+            # Usar la key ingresada o la del entorno
+            api_key = api_key_input if api_key_input else api_key_env
             
-            # if not api_key:
-            #     st.error("❌ Ingresa tu API key para usar validación LLM")
-            # else:
-            #     st.success(f"✓ API Key configurada ({api_key[:10]}...)")
+            if not api_key:
+                st.error("❌ Ingresa tu API key para usar validación LLM")
+            else:
+                st.success(f"✓ API Key configurada ({api_key[:10]}...)")
             
-            # # Guardar en session state
-            # if api_key:
-            #     st.session_state['groq_api_key'] = api_key
-            #     st.session_state['llm_enabled'] = True
-            # else:
-            #     st.session_state['llm_enabled'] = False
-            st.session_state['groq_api_key'] = api_key_env
-            st.session_state['llm_enabled'] = True
+            # Guardar en session state
+            if api_key:
+                st.session_state['groq_api_key'] = api_key
+                st.session_state['llm_enabled'] = True
+            else:
+                st.session_state['llm_enabled'] = False
+            # st.session_state['groq_api_key'] = api_key_env
+            # st.session_state['llm_enabled'] = True
         else:
             st.session_state['llm_enabled'] = False
             st.info("ℹ️ Validación LLM deshabilitada")
