@@ -350,13 +350,8 @@ if analyze_button:
                         st.success("✅ Análisis completado (con validación IA)")
                         
                         st.divider()
-                        st.header("📊 Resultados del Análisis con IA")
-                        
-                        # Mostrar resultados con validación LLM
+                        st.header("��� Resultados del Análisis con IA")
                         display_procedure_analysis(results)
-                        
-                        st.divider()
-                        
                                 
             except ParseError as e:
                 st.error(f"❌ **Error de Sintaxis**")
