@@ -100,6 +100,13 @@ def display_llm_chat_analysis(messages: List, show_header: bool = True):
     
     # Mostrar cada mensaje como chat bubble
     for i, msg in enumerate(messages):
+        # Manejo especial para complexity_summary
+        if msg.message_type == 'complexity_summary':
+            st.info(f"{msg.emoji} **Complejidades calculadas por Groq**")
+            st.markdown(msg.text)
+            st.divider()
+            continue
+        
         # Determinar clase CSS según tipo
         css_class = f"chat-{msg.message_type}"
         
