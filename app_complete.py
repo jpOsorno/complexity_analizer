@@ -177,6 +177,8 @@ with st.sidebar:
             #     st.session_state['llm_enabled'] = True
             # else:
             #     st.session_state['llm_enabled'] = False
+            st.session_state['groq_api_key'] = api_key_env
+            st.session_state['llm_enabled'] = True
         else:
             st.session_state['llm_enabled'] = False
             st.info("ℹ️ Validación LLM deshabilitada")
