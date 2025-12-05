@@ -15,6 +15,14 @@ import os
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
+# Intentar cargar variables de entorno desde un archivo .env si está disponible
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    # Si python-dotenv no está instalado, continuar sin fallar
+    pass
+
 
 @dataclass
 class LLMConfig:

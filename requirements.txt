@@ -10,3 +10,5 @@ ruff
 requests  
 plotly
 kaleido
+python-dotenv
+kaleido
