@@ -123,6 +123,8 @@ with st.sidebar:
     if selected_example and selected_example in EXAMPLES:
         if st.button("📥 Cargar Ejemplo", use_container_width=True):
             st.session_state['code_input'] = EXAMPLES[selected_example]
+            # Forzar actualización del textarea
+            st.session_state['code_area'] = EXAMPLES[selected_example]
             st.rerun()
     
     st.divider()
@@ -271,6 +273,7 @@ with col2:
 
 if clear_button:
     st.session_state['code_input'] = ''
+    st.session_state['code_area'] = ''
     st.rerun()
 
 

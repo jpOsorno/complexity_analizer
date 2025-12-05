@@ -439,7 +439,7 @@ def display_solution_steps(steps: list, title: str = "Pasos de Resolución"):
     
     if has_tables:
         # Mostrar en expander con fuente monoespaciada
-        with st.expander("📋 Ver pasos detallados", expanded=True):
+        with st.expander("📋 Ver pasos detallados"):
             for step in steps:
                 if "╔" in step or "║" in step or "╠" in step or "╚" in step:
                     # Es una tabla, mostrar con código
@@ -658,7 +658,7 @@ def display_complexity_result(result, procedure_name: str):
                         st.markdown("**Cotas Fuertes (Tight Bounds):**")
                         st.latex(sol.tight_bounds.replace("≤", r"\leq").replace("₁", "_1").replace("₂", "_2"))
                     
-                    with st.expander("🔎 Explicación detallada", expanded=True):
+                    with st.expander("🔎 Explicación detallada"):
                         if recurrence_analysis.worst_case_explanation:
                             st.markdown("**Explicación:**")
                             st.markdown(recurrence_analysis.worst_case_explanation)
@@ -674,7 +674,7 @@ def display_complexity_result(result, procedure_name: str):
                             st.info(sol.tree_analysis)
                     
                     # NUEVO: Expander para gráficas y visualización del árbol
-                    with st.expander("📈 Ver Gráficas y Árbol de Recursión", expanded=True):
+                    with st.expander("📈 Ver Gráficas y Árbol de Recursión"):
                         display_recursion_tree_visualization(
                             recurrence_analysis.worst_case_equation,
                             sol.method_used
@@ -706,7 +706,7 @@ def display_complexity_result(result, procedure_name: str):
                         st.markdown("**Cotas Fuertes:**")
                         st.latex(sol.tight_bounds.replace("≤", r"\leq").replace("₁", "_1").replace("₂", "_2"))
                     
-                    with st.expander("🔎 Explicación detallada", expanded=True):
+                    with st.expander("🔎 Explicación detallada"):
                         if recurrence_analysis.best_case_explanation:
                             st.markdown("**Explicación:**")
                             st.markdown(recurrence_analysis.best_case_explanation)
@@ -720,7 +720,7 @@ def display_complexity_result(result, procedure_name: str):
                             st.info(sol.tree_analysis)
                     
                     # NUEVO: Expander para gráficas y visualización del árbol
-                    with st.expander("📈 Ver Gráficas y Árbol de Recursión", expanded=True):
+                    with st.expander("📈 Ver Gráficas y Árbol de Recursión"):
                         display_recursion_tree_visualization(
                             recurrence_analysis.best_case_equation,
                             sol.method_used
@@ -752,7 +752,7 @@ def display_complexity_result(result, procedure_name: str):
                         st.markdown("**Cotas Fuertes:**")
                         st.latex(sol.tight_bounds.replace("≤", r"\leq").replace("₁", "_1").replace("₂", "_2"))
                     
-                    with st.expander("🔎 Explicación detallada", expanded=True):
+                    with st.expander("🔎 Explicación detallada"):
                         if recurrence_analysis.average_case_explanation:
                             st.markdown("**Explicación:**")
                             st.markdown(recurrence_analysis.average_case_explanation)
@@ -766,7 +766,7 @@ def display_complexity_result(result, procedure_name: str):
                             st.info(sol.tree_analysis)
                     
                     # NUEVO: Expander para gráficas y visualización del árbol
-                    with st.expander("📈 Ver Gráficas y Árbol de Recursión", expanded=True):
+                    with st.expander("📈 Ver Gráficas y Árbol de Recursión"):
                         display_recursion_tree_visualization(
                             recurrence_analysis.average_case_equation,
                             sol.method_used
