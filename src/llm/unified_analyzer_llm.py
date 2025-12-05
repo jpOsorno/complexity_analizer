@@ -95,10 +95,15 @@ def analyze_with_llm(
                 
                 # Validar según tipo
                 if result.is_recursive:
+                    # Obtener ecuación de recurrencia
+                    recurrence_eq = "N/A"
+                    if result.recurrence_analysis and result.recurrence_analysis.worst_case_equation:
+                        recurrence_eq = result.recurrence_analysis.worst_case_equation
+                    
                     # Validación recursiva
                     validation = comparator.compare_recursive(
                         proc_code,
-                        result.recurrence_equation or "N/A",
+                        recurrence_eq,
                         result.final_worst,
                         result.final_best,
                         result.final_average,
@@ -115,14 +120,18 @@ def analyze_with_llm(
                     )
                 
                 # Crear resultado mejorado
+                # Obtener ecuación si es recursivo
+                recurrence_eq = None
+                if result.is_recursive and result.recurrence_analysis:
+                    recurrence_eq = result.recurrence_analysis.worst_case_equation
+                
                 enhanced = LLMEnhancedResult(
                     procedure_name=result.procedure_name,
                     iterative_worst=result.iterative_worst,
                     iterative_best=result.iterative_best,
                     iterative_average=result.iterative_average,
                     is_recursive=result.is_recursive,
-                    recurrence_equation=result.recurrence_equation,
-                    recurrence_solution=result.recurrence_solution,
+                    recurrence_analysis=result.recurrence_analysis,
                     final_worst=result.final_worst,
                     final_best=result.final_best,
                     final_average=result.final_average,
@@ -145,8 +154,7 @@ def analyze_with_llm(
                     iterative_best=result.iterative_best,
                     iterative_average=result.iterative_average,
                     is_recursive=result.is_recursive,
-                    recurrence_equation=result.recurrence_equation,
-                    recurrence_solution=result.recurrence_solution,
+                    recurrence_analysis=result.recurrence_analysis,
                     final_worst=result.final_worst,
                     final_best=result.final_best,
                     final_average=result.final_average,
@@ -164,8 +172,7 @@ def analyze_with_llm(
                 iterative_best=result.iterative_best,
                 iterative_average=result.iterative_average,
                 is_recursive=result.is_recursive,
-                recurrence_equation=result.recurrence_equation,
-                recurrence_solution=result.recurrence_solution,
+                recurrence_analysis=result.recurrence_analysis,
                 final_worst=result.final_worst,
                 final_best=result.final_best,
                 final_average=result.final_average,

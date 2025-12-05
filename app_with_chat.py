@@ -1,10 +1,11 @@
 """
-Analizador de Complejidad Computacional
-=======================================
+Analizador de Complejidad Computacional con Chat IA
+====================================================
 
 Interfaz web para analizar la complejidad de algoritmos en pseudocódigo.
+VERSIÓN CON CHAT CONVERSACIONAL INTEGRADO.
 
-Ejecutar: streamlit run app.py
+Ejecutar: streamlit run app_with_chat.py
 """
 
 import streamlit as st
@@ -17,15 +18,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.parser.parser import parse, ParseError
 from src.analyzer.unified_analyzer import analyze_complexity_unified
 from src.visualization.components import (
-    display_procedure_analysis,  # NUEVO
+    display_procedure_analysis,
 )
 
-# NUEVO: Importar sistema LLM
+# Importar sistema LLM
 try:
     from src.llm.unified_analyzer_llm import analyze_with_llm
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
+
+# Importar chat analyzer
+try:
+    from src.llm.llm_chat_analyzer import ChatAnalyzer
+    from src.visualization.chat_display import display_llm_chat_analysis
+    CHAT_ANALYZER_AVAILABLE = True
+except ImportError:
+    CHAT_ANALYZER_AVAILABLE = False
 
 
 # ============================================================================
@@ -33,7 +42,7 @@ except ImportError:
 # ============================================================================
 
 st.set_page_config(
-    page_title="Analizador de Complejidad",
+    page_title="Analizador de Complejidad con IA",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -41,7 +50,7 @@ st.set_page_config(
 
 
 # ============================================================================
-# EJEMPLOS PRECARGADOS (sin cambios)
+# EJEMPLOS PRECARGADOS
 # ============================================================================
 
 EXAMPLES = {
@@ -155,17 +164,18 @@ end"""
 # HEADER
 # ============================================================================
 
-st.title("🔍 Analizador de Complejidad Computacional")
+st.title("🔍 Analizador de Complejidad Computacional con IA")
 st.markdown("""
 Analiza la complejidad de algoritmos escritos en pseudocódigo.
 Soporta algoritmos **iterativos**, **recursivos** e **híbridos**.
+✨ **NUEVO**: Análisis conversacional con IA
 """)
 
 st.divider()
 
 
 # ============================================================================
-# SIDEBAR: EJEMPLOS + CONFIGURACIÓN LLM
+# SIDEBAR: EJEMPLOS + CONFIGURACIÓN LLM + CHAT
 # ============================================================================
 
 with st.sidebar:
@@ -186,7 +196,7 @@ with st.sidebar:
     st.divider()
     
     # ========================================================================
-    # NUEVO: CONFIGURACIÓN LLM
+    # CONFIGURACIÓN LLM
     # ========================================================================
     
     st.header("🤖 Validación con IA")
@@ -204,19 +214,29 @@ with st.sidebar:
             # Verificar si hay API key en variable de entorno
             api_key_env = os.getenv('GROQ_API_KEY')
             
+            # SIEMPRE mostrar el campo de input, pero con valor por defecto si existe en env
             if api_key_env:
                 st.success("✓ API Key detectada en variables de entorno")
-                api_key = api_key_env
+                st.caption("Puedes usar la detectada o ingresar una nueva abajo:")
             else:
                 st.warning("⚠️ No se detectó GROQ_API_KEY en variables de entorno")
-                api_key = st.text_input(
-                    "API Key de Groq:",
-                    type="password",
-                    help="Obtén tu API key gratuita en https://console.groq.com/keys"
-                )
-                
-                if not api_key:
-                    st.error("❌ Ingresa tu API key para usar validación LLM")
+            
+            # Campo de input SIEMPRE visible
+            api_key_input = st.text_input(
+                "API Key de Groq:",
+                value=api_key_env if api_key_env else "",
+                type="password",
+                help="Obtén tu API key gratuita en https://console.groq.com/keys",
+                placeholder="gsk_..."
+            )
+            
+            # Usar la key ingresada o la del entorno
+            api_key = api_key_input if api_key_input else api_key_env
+            
+            if not api_key:
+                st.error("❌ Ingresa tu API key para usar validación LLM")
+            else:
+                st.success(f"✓ API Key configurada ({api_key[:10]}...)")
             
             # Guardar en session state
             if api_key:
@@ -231,10 +251,33 @@ with st.sidebar:
         st.warning("⚠️ Módulo LLM no disponible")
         st.session_state['llm_enabled'] = False
     
+    # ========================================================================
+    # NUEVO: ANÁLISIS CONVERSACIONAL CON IA
+    # ========================================================================
+    
+    if LLM_AVAILABLE and CHAT_ANALYZER_AVAILABLE:
+        st.divider()
+        st.header("💬 Chat con IA")
+        
+        enable_chat = st.toggle(
+            "Mostrar Análisis Conversacional",
+            value=True,
+            help="El asistente de IA explicará tu algoritmo de forma conversacional"
+        )
+        
+        st.session_state['chat_enabled'] = enable_chat
+        
+        if enable_chat:
+            st.info("💡 **Chat habilitado**: Recibirás explicaciones conversacionales del algoritmo")
+        else:
+            st.info("ℹ️ Chat deshabilitado")
+    else:
+        st.session_state['chat_enabled'] = False
+    
     st.divider()
     
     # ========================================================================
-    # SINTAXIS (sin cambios)
+    # SINTAXIS
     # ========================================================================
     
     st.markdown("### ℹ️ Sintaxis")
@@ -274,7 +317,7 @@ return expresión
 
 
 # ============================================================================
-# MAIN: ENTRADA DE CÓDIGO (sin cambios)
+# MAIN: ENTRADA DE CÓDIGO
 # ============================================================================
 
 st.header("✏️ Entrada de Código")
@@ -300,7 +343,7 @@ if clear_button:
 
 
 # ============================================================================
-# ANÁLISIS Y RESULTADOS (MEJORADO CON LLM)
+# ANÁLISIS Y RESULTADOS (MEJORADO CON LLM Y CHAT)
 # ============================================================================
 
 if analyze_button:
@@ -331,7 +374,7 @@ if analyze_button:
                     display_procedure_analysis(results)                    
                 
                 # ============================================================
-                # CON LLM: Análisis + Validación
+                # CON LLM: Análisis + Validación + Chat
                 # ============================================================
                 
                 else:
@@ -355,6 +398,26 @@ if analyze_button:
                         # Mostrar resultados con validación LLM
                         display_procedure_analysis(results)
                         
+                        # NUEVO: Mostrar chat conversacional si está habilitado
+                        chat_enabled = st.session_state.get('chat_enabled', False)
+                        if chat_enabled and CHAT_ANALYZER_AVAILABLE:
+                            try:
+                                st.divider()
+                                with st.spinner("🤖 Generando análisis conversacional..."):
+                                    chat_analyzer = ChatAnalyzer(api_key)
+                                    
+                                    # Extraer complejidad para contexto
+                                    first_proc = next(iter(results.values()))
+                                    static_complexity = {
+                                        'worst_case': getattr(first_proc, 'final_worst', 'O(?)'),
+                                        'algorithm_type': getattr(first_proc, 'algorithm_type', 'unknown')
+                                    }
+                                    
+                                    chat_messages = chat_analyzer.analyze(code_input, static_complexity)
+                                    display_llm_chat_analysis(chat_messages)
+                            except Exception as e:
+                                st.warning(f"⚠️ No se pudo generar análisis conversacional: {e}")
+                        
                         st.divider()
                         
                                 
@@ -374,7 +437,7 @@ if analyze_button:
 
 
 # ============================================================================
-# FOOTER (sin cambios)
+# FOOTER
 # ============================================================================
 
 st.divider()
@@ -383,7 +446,8 @@ st.markdown("""
 <div style="text-align: center; color: #6b7280; font-size: 0.875rem;">
     <p>
         🎓 Proyecto de Análisis y Diseño de Algoritmos<br>
-        Universidad: Universidad de Caldas | 2025
+        Universidad: Universidad de Caldas | 2025<br>
+        ✨ Con análisis conversacional por IA
     </p>
 </div>
 """, unsafe_allow_html=True)
