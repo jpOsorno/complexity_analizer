@@ -67,6 +67,13 @@ def display_llm_chat_analysis(messages: List, show_header: bool = True):
         color: white;
     }
     
+    .chat-complexity_summary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: 3px solid #ffd700;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
     .chat-error {
         background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
         color: white;
@@ -93,6 +100,13 @@ def display_llm_chat_analysis(messages: List, show_header: bool = True):
     
     # Mostrar cada mensaje como chat bubble
     for i, msg in enumerate(messages):
+        # Manejo especial para complexity_summary
+        if msg.message_type == 'complexity_summary':
+            st.info(f"{msg.emoji} **Complejidades calculadas por Groq**")
+            st.markdown(msg.text)
+            st.divider()
+            continue
+        
         # Determinar clase CSS según tipo
         css_class = f"chat-{msg.message_type}"
         

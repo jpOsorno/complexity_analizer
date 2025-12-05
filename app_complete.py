@@ -50,114 +50,46 @@ st.set_page_config(
 
 
 # ============================================================================
-# EJEMPLOS PRECARGADOS
+# CARGA DINÁMICA DE EJEMPLOS
 # ============================================================================
 
-EXAMPLES = {
-    "🔹 Bubble Sort (Iterativo)": """BubbleSort(A[], n)
-begin
-    for i ← 1 to n-1 do
-    begin
-        for j ← 1 to n-i do
-        begin
-            if (A[j] > A[j+1]) then
-            begin
-                temp ← A[j]
-                A[j] ← A[j+1]
-                A[j+1] ← temp
-            end
-        end
-    end
-end""",
+def load_examples_from_folder():
+    """Carga ejemplos dinámicamente desde la carpeta examples/."""
+    examples = {}
+    examples_dir = os.path.join(os.path.dirname(__file__), 'examples')
     
-    "🔸 Merge Sort (Recursivo)": """MergeSort(A[], p, r)
-begin
-    if (p < r) then
-    begin
-        q ← floor((p + r) / 2)
-        call MergeSort(A, p, q)
-        call MergeSort(A, q+1, r)
-        call Merge(A, p, q, r)
-    end
-end""",
+    if not os.path.exists(examples_dir):
+        return examples
     
-    "⚡ Quick Sort (Híbrido)": """QuickSort(A[], p, r)
-begin
-    if (p < r) then
-    begin
-        q ← call Partition(A, p, r)
-        call QuickSort(A, p, q-1)
-        call QuickSort(A, q+1, r)
-    end
-end
+    category_emojis = {'iteratives': '🔄', 'recursives': '🔁'}
+    
+    for category in ['iteratives', 'recursives']:
+        category_path = os.path.join(examples_dir, category)
+        if not os.path.exists(category_path):
+            continue
+        
+        emoji = category_emojis.get(category, '📄')
+        
+        for filename in sorted(os.listdir(category_path)):
+            if filename.endswith('.txt'):
+                filepath = os.path.join(category_path, filename)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    name = filename.replace('.txt', '').replace('_', ' ').title()
+                    if category == 'iteratives':
+                        display_name = f"{emoji} {name} (Iterativo)"
+                    else:
+                        display_name = f"{emoji} {name} (Recursivo)"
+                    
+                    examples[display_name] = content
+                except Exception as e:
+                    print(f"Error cargando {filepath}: {e}")
+    
+    return examples
 
-Partition(A[], p, r)
-begin
-    pivot ← A[r]
-    i ← p - 1
-    
-    for j ← p to r-1 do
-    begin
-        if (A[j] ≤ pivot) then
-        begin
-            i ← i + 1
-            temp ← A[i]
-            A[i] ← A[j]
-            A[j] ← temp
-        end
-    end
-    
-    return i+1
-end""",
-    
-    "🔍 Binary Search (Recursivo)": """BinarySearch(A[], left, right, x)
-begin
-    if (left > right) then
-    begin
-        return -1
-    end
-    
-    mid ← floor((left + right) / 2)
-    
-    if (A[mid] = x) then
-    begin
-        return mid
-    end
-    
-    if (A[mid] < x) then
-    begin
-        return call BinarySearch(A, mid+1, right, x)
-    end
-    else
-    begin
-        return call BinarySearch(A, left, mid-1, x)
-    end
-end""",
-    
-    "🔢 Factorial (Recursivo Lineal)": """Factorial(n)
-begin
-    if (n ≤ 1) then
-    begin
-        return 1
-    end
-    else
-    begin
-        return n * call Factorial(n-1)
-    end
-end""",
-    
-    "🌀 Fibonacci (Recursivo Binario)": """Fibonacci(n)
-begin
-    if (n ≤ 1) then
-    begin
-        return n
-    end
-    else
-    begin
-        return call Fibonacci(n-1) + call Fibonacci(n-2)
-    end
-end"""
-}
+EXAMPLES = load_examples_from_folder()
 
 
 # ============================================================================
