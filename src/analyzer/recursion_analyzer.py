@@ -309,10 +309,50 @@ class RecurrenceEquation:
         return self._choose_most_expensive_term(all_terms)
     
     def _has_early_exit_pattern(self) -> bool:
-        """Detecta patrón de early exit"""
-        if self.base_case_condition and self.base_case_condition != "unknown":
-            return True
+        """
+        Detecta patrón de early exit REAL.
+        
+        Early exit: el algoritmo puede terminar SIN hacer todas las llamadas
+        recursivas dependiendo de la entrada.
+        
+        Criterios:
+        1. Debe haber llamadas recursivas en DIFERENTES grupos de return
+        2. Los grupos deben ser mutuamente excluyentes (if/else)
+        3. Debe existir un caso base que retorna sin recursión
+        
+        Ejemplos:
+        - Binary Search: SI (if encontrado return, else recurse)
+        - Fibonacci: NO (return fib(n-1) + fib(n-2) - ambas en mismo return)
+        - Hanoi: NO (todas las llamadas son statements)
+        """
+        if not self.recursive_calls:
+            return False
+        
+        # Si todas las llamadas están en statements (no en returns), NO hay early exit
+        all_in_statements = all(not call.in_return for call in self.recursive_calls)
+        if all_in_statements:
+            return False
+        
+        # Agrupar llamadas por return_group
+        from collections import defaultdict
+        in_return_calls: Dict[Optional[int], List[RecursiveCall]] = defaultdict(list)
+        
+        for call in self.recursive_calls:
+            if call.in_return:
+                in_return_calls[call.return_group].append(call)
+        
+        # CLAVE: Solo hay early exit si hay MÚLTIPLES grupos de return diferentes
+        # Fibonacci tiene todas las llamadas en el MISMO return (mismo grupo)
+        # Binary Search tiene llamadas en DIFERENTES returns (diferentes grupos)
+        num_return_groups = len(in_return_calls)
+        
+        if num_return_groups > 1:
+            # Múltiples grupos = ramas mutuamente excluyentes = early exit posible
+            if self.base_case_condition and self.base_case_condition != "unknown":
+                return True
+        
         return False
+
     
     def _calculate_average_case(self) -> str:
         """Calcula ecuación de caso promedio"""
